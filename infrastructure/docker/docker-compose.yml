@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    build: ./backend/api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+
+  voice-service:
+    build: ./backend/voice-service
+    ports:
+      - "5003:5003"
+
+  risk-service:
+    build: ./backend/risk-service
+    ports:
+      - "5004:5004"
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+    depends_on:
+      - api-gateway

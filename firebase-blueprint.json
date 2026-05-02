@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and authentication tracking",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "Display name of the user" },
+        "phone": { "type": "string", "description": "Verified phone number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "phone", "createdAt"]
+    },
+    "SiemLog": {
+      "title": "SIEM Log",
+      "description": "Security events and logs",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "severity": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+        "message": { "type": "string" },
+        "ip": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "severity", "message", "timestamp"]
+    },
+    "ApiKey": {
+      "title": "API Key",
+      "description": "User-generated API keys for SaaS access",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "key": { "type": "string" },
+        "created": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "key", "created"]
+    },
+    "Report": {
+      "title": "Threat Report",
+      "description": "Global phishing threat data",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "riskScore": { "type": "number" },
+        "reporterId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["content", "riskScore", "createdAt"]
+    },
+    "Scan": {
+      "title": "Historical Scan",
+      "description": "User-specific scan history for neural training",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "result": { "type": "object" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["content", "result", "userId", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles indexed by UID"
+    },
+    "/siem_logs/{logId}": {
+      "schema": "SiemLog",
+      "description": "Store for security logs"
+    },
+    "/users/{userId}/api_keys/{keyId}": {
+      "schema": "ApiKey",
+      "description": "API keys belonging to a specific user"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Global intelligence reports"
+    },
+    "/users/{userId}/scans/{scanId}": {
+      "schema": "Scan",
+      "description": "Recursive scan history for individual users"
+    }
+  }
+}

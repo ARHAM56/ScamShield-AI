@@ -1,0 +1,115 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['username', 'phone', 'createdAt']) &&
+             data.keys().size() == 3 &&
+             data.username is string && data.username.size() <= 50 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidSiemLog(data) {
+      return data.keys().hasAll(['type', 'severity', 'message', 'timestamp']) &&
+             data.keys().size() >= 4 &&
+             data.type is string && data.type.size() <= 100 &&
+             data.severity in ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] &&
+             data.message is string && data.message.size() <= 5000 &&
+             data.timestamp == request.time;
+    }
+
+    function isValidApiKey(data) {
+      return data.keys().hasAll(['name', 'key', 'created']) &&
+             data.keys().size() == 3 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.key is string && data.key.size() <= 256 &&
+             data.created == request.time;
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll(['content', 'riskScore', 'createdAt', 'reporterId']) &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.riskScore is number &&
+             data.reporterId == request.auth.uid &&
+             data.createdAt == request.time;
+    }
+
+    function isValidScan(data) {
+      return data.keys().hasAll(['content', 'result', 'userId', 'timestamp']) &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.result is map &&
+             data.userId == request.auth.uid &&
+             data.timestamp == request.time;
+    }
+
+    // --- Collections ---
+
+    match /test/connection {
+      allow get: if true;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && 
+                      isValidUser(incoming()) && 
+                      incoming().phone == existing().phone &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['username']);
+      
+      match /api_keys/{keyId} {
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(keyId) && isValidApiKey(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /scans/{scanId} {
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(scanId) && isValidScan(incoming());
+      }
+    }
+
+    match /siem_logs/{logId} {
+      allow list, get: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(logId) && isValidSiemLog(incoming());
+    }
+
+    match /reports/{reportId} {
+      // Public intelligence feed
+      allow list, get: if true;
+      // Creation restricted to authenticated nodes
+      allow create: if isSignedIn() && isValidId(reportId) && isValidReport(incoming());
+    }
+  }
+}

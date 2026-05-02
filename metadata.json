@@ -1,0 +1,7 @@
+{
+  "name": "ScamShield AI: ARHAM_SENTINEL_V4",
+  "description": "Production-grade Neural Call Protection & Auto-Block system. Locked to Arham's authorized node for global secure monitoring.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
