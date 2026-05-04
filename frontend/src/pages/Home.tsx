@@ -5,21 +5,30 @@ import { cn } from '../lib/utils';
 import RiskBadge from '../components/RiskBadge';
 import { collection, query, where, getDocs, orderBy, limit, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, waitForAuth, auth, handleFirestoreError } from '../lib/firebase';
-import { GoogleGenAI, Type } from "@google/genai";
 import { Layers, History, Hash, Clock } from 'lucide-react';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-
-// Helper for resilient AI calls with exponential backoff
-const callAiWithRetry = async (params: any, retries = 2) => {
+// Helper for resilient AI calls using backend proxy
+const callAiWithRetry = async (params: { text: string }, retries = 2) => {
   for (let i = 0; i <= retries; i++) {
     try {
-      return await ai.models.generateContent(params);
+      const res = await fetch('/api/analyze/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: params.text })
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'AI analysis failed');
+      }
+      const data = await res.json();
+      return {
+        text: JSON.stringify(data)
+      };
     } catch (err: any) {
       if (i === retries) throw err;
-      const isTransient = err?.message?.includes('500') || err?.message?.includes('INTERNAL');
+      const isTransient = err?.message?.includes('500') || err?.message?.includes('INTERNAL') || err?.message?.includes('AI_SERVICE_UNAVAILABLE');
       if (isTransient) {
-        console.warn(`[AI_RETRY] Neural Core signal flicker (500). Retrying attempt ${i + 1}...`);
+        console.warn(`[AI_RETRY] Neural Core signal flicker. Retrying attempt ${i + 1}...`);
         await new Promise(r => setTimeout(r, 1000 * (i + 1)));
         continue;
       }
@@ -140,11 +149,7 @@ export default function Home() {
         : "";
 
       const response = await callAiWithRetry({
-        model: "gemini-3-flash-preview",
-        contents: [{
-          role: "user",
-          parts: [{
-            text: `Analyze this content for scam/phishing risk. Content can be SMS, Email, or URL.
+        text: `Analyze this content for scam/phishing risk. Content can be SMS, Email, or URL.
             ${personalMemory}
             ${memoryContext}
             
@@ -156,21 +161,6 @@ export default function Home() {
             3. Classification: Phishing, Spam, or Safe.
             
             Input: "${input}"`
-          }]
-        }],
-        config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              status: { type: Type.STRING },
-              score: { type: Type.NUMBER },
-              markers: { type: Type.ARRAY, items: { type: Type.STRING } },
-              model: { type: Type.STRING }
-            },
-            required: ["status", "score", "markers", "model"]
-          }
-        }
       });
 
       const data = JSON.parse(response?.text || '{"status":"error","score":0,"markers":[],"model":"FALLBACK"}');

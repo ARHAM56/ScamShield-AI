@@ -59,7 +59,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         data = await res.json();
       } else {
         const text = await res.text();
-        throw new Error(`INTERNAL_LINK_ERR: Unexpected response format. (${res.status})`);
+        const snippet = text.substring(0, 50).replace(/[<>]/g, '');
+        throw new Error(`INTERNAL_LINK_ERR: (${res.status}) [${snippet}...]`);
       }
 
       if (!res.ok) {

@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, Sparkles, ShieldCheck, AlertCircle, Cpu, Zap } from 'lucide-react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { cn } from '../lib/utils';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 export default function GPTPage() {
   const [input, setInput] = useState('');
@@ -19,40 +16,23 @@ export default function GPTPage() {
     setAnalysis(null);
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Analyze the following communication (email, SMS, or transcript) for phishing or social engineering markers. 
-        Provide a detailed assessment in JSON format.
-        
-        Input: "${input}"`,
-        config: {
-          systemInstruction: "You are a world-class cybersecurity analyst specializing in social engineering and phishing detection. Your goal is to identify malicious intent, urgency tactics, and spoofing markers.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: { type: Type.STRING, description: "A brief summary of the assessment." },
-              risk_level: { type: Type.STRING, enum: ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"] },
-              indicators: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "List of specific behavioral indicators found."
-              },
-              recommendation: { type: Type.STRING, description: "Actionable advice for the user." }
-            },
-            required: ["summary", "risk_level", "indicators", "recommendation"]
-          }
-        }
+      const res = await fetch('/api/analyze/gpt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input })
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'GPT analysis failed');
+      }
 
-      const text = response.text;
-      if (!text) throw new Error('Empty response from AI');
-      const result = JSON.parse(text);
+      const result = await res.json();
       setAnalysis(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error('GPT Analysis failed:', error);
       setAnalysis({
-        summary: "Neural analysis failed due to a connection error. Please try again.",
+        summary: `Neural analysis failed: ${error.message || 'Connection error'}.`,
         risk_level: "UNKNOWN",
         indicators: ["CONNECTION_TIMEOUT"],
         recommendation: "Retry the scan or check system integrity."

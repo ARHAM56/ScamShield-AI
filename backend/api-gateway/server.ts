@@ -85,12 +85,22 @@ export async function startServer() {
     // SIEM State
     const pushSiemLog = async (type: string, severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL', message: string, ip: string) => {
       try {
-        const timestamp = FieldValue.serverTimestamp();
+        let timestamp;
+        try {
+          timestamp = FieldValue.serverTimestamp();
+        } catch (e) {
+          timestamp = new Date();
+        }
+        
         const log = { type, severity, message, ip, timestamp };
         
         const database = getDb();
         if (database) {
-          await database.collection('siem_logs').add(log);
+          // Increase timeout for log addition
+          await Promise.race([
+            database.collection('siem_logs').add(log),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('SIEM_LOG_TIMEOUT')), 3000))
+          ]);
         }
         return log;
       } catch (error) {
@@ -168,7 +178,7 @@ export async function startServer() {
     // Request OTP Route
     apiRouter.post("/v1/auth/request-otp", async (req, res) => {
       const phone = req.body.phone;
-      console.log(`[AUTH_OTP_REQ] Pulse sequence initiated for: ${phone}`);
+      console.log(`[AUTH_OTP_REQ] Starting sequence for: ${phone}`);
       
       try {
         if (!phone) {
@@ -178,10 +188,10 @@ export async function startServer() {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         otps.set(phone, otp);
         
-        // Non-blocking log
+        // Truly non-blocking log (no await, no catch that might block)
         pushSiemLog("AUTH_OTP_REQUEST", "LOW", `OTP requested for ${phone}`, (req.ip || "0.0.0.0").toString()).catch(() => {});
 
-        // Always succeed in demo/bypass mode for this environment
+        // Success response
         return res.json({ 
           status: "SUCCESS", 
           mode: "MANUAL_DELIVERY", 
@@ -190,13 +200,15 @@ export async function startServer() {
         });
       } catch (err: any) {
         console.error('[AUTH_OTP_GLOBAL_FAULT]', err);
-        // Ensure we ALWAYS return JSON even on failure
-        return res.status(500).json({ 
-          status: "ERROR", 
-          error: "SERVER_FAULT", 
-          message: "Neural link integrity failure.",
-          details: err?.message || String(err)
-        });
+        // Force JSON response even if something above failed
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            status: "ERROR", 
+            error: "SERVER_FAULT", 
+            message: "Neural link integrity failure.",
+            details: err?.message || String(err)
+          });
+        }
       }
     });
 
@@ -310,6 +322,18 @@ export async function startServer() {
 
     // Mount API routes
     app.use('/api', apiRouter);
+
+    // Global JSON Error Handler
+    app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+      console.error('[GLOBAL_ERROR]', err);
+      if (res.headersSent) return next(err);
+      res.status(500).json({
+        status: 'ERROR',
+        error: 'INTERNAL_SERVER_ERROR',
+        message: 'A critical neural link failure occurred.',
+        snippet: err.message?.substring(0, 100)
+      });
+    });
 
     // API router fallback (inside apiRouter)
     apiRouter.all('*', (req, res, next) => {
