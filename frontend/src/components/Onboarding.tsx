@@ -7,7 +7,7 @@ interface OnboardingProps {
   onComplete: () => void;
 }
 
-type Step = 'phone' | 'otp' | 'register' | 'success';
+type Step = 'phone' | 'otp' | 'register' | 'login' | 'success';
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState<Step>('phone');
@@ -20,23 +20,62 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const [useWhatsApp, setUseWhatsApp] = useState(false);
 
+  const handleLogin = async () => {
+    if (!username || !password) return setError('Credentials required');
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem('sentinel_token', data.token);
+        localStorage.setItem('ARHAM_NODE_SESSION', 'ACTIVE');
+        setStep('success');
+        setTimeout(onComplete, 1500);
+      } else {
+        setError(data.message || 'Authentication failed.');
+      }
+    } catch (e) {
+      setError('Neural connection failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRequestOtp = async () => {
-    if (phone.length < 10) return setError('Invalid phone number');
+    let formattedPhone = phone.trim();
+    if (!formattedPhone.startsWith('+')) {
+      // Auto-prefix India if it looks like a 10-digit number
+      if (formattedPhone.length === 10) formattedPhone = '+91' + formattedPhone;
+      else if (formattedPhone.length === 12 && formattedPhone.startsWith('91')) formattedPhone = '+' + formattedPhone;
+    }
+    
+    if (formattedPhone.length < 8) return setError('Invalid identifier');
     setLoading(true);
     setError(null);
     try {
       const res = await fetch('/api/v1/auth/request-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, useWhatsApp })
+        body: JSON.stringify({ phone: formattedPhone, useWhatsApp })
       });
+      
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Request failed');
+      }
+
       if (data.demoOtp) {
-        setOtp(data.demoOtp); // Auto-fill for demo mode
+        setOtp(data.demoOtp);
       }
       setStep('otp');
-    } catch (e) {
-      setError('Communication fault. Try again.');
+    } catch (e: any) {
+      console.error('[Onboarding] Request fault:', e);
+      setError(e.message || 'NEURAL_LINK_FAULT: Re-try required.');
     } finally {
       setLoading(false);
     }
@@ -66,13 +105,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setLoading(true);
     setError(null);
     try {
-      await fetch('/api/v1/auth/register', {
+      const res = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, phone })
       });
-      setStep('success');
-      setTimeout(onComplete, 2000);
+      const data = await res.json();
+      if (data.status === 'SUCCESS') {
+        localStorage.setItem('sentinel_token', data.token);
+        localStorage.setItem('ARHAM_NODE_SESSION', 'ACTIVE');
+        setStep('success');
+        setTimeout(onComplete, 2000);
+      } else {
+        setError('Registration fault.');
+      }
     } catch (e) {
       setError('Registration fault.');
     } finally {
@@ -133,7 +179,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   </div>
                   <input
                     type="tel"
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="+91 (000) 000-0000"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all outline-none"
@@ -168,7 +214,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 
                 <button
                   onClick={handleRequestOtp}
-                  disabled={loading || phone.length < 10}
+                  disabled={loading || phone.length < 8}
                   className="w-full py-5 rounded-2xl bg-primary text-black font-black uppercase tracking-widest italic hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-3"
                 >
                   {loading ? 'Transmitting...' : (
@@ -177,6 +223,74 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
+                </button>
+
+                <div className="pt-4 flex flex-col items-center">
+                  <p className="text-[10px] font-mono text-slate-500 uppercase">Existing Node?</p>
+                  <button 
+                    onClick={() => setStep('login')}
+                    className="text-[10px] font-mono text-primary hover:underline uppercase mt-1"
+                  >
+                    Establish Session Link
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'login' && (
+            <motion.div
+              key="login"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              <button 
+                onClick={() => setStep('phone')}
+                className="flex items-center gap-2 text-[10px] font-mono text-slate-500 hover:text-white transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" /> RE_ROUTE
+              </button>
+
+              <div className="text-center">
+                <h3 className="text-3xl font-black italic text-white uppercase tracking-tighter">Node_Authentication</h3>
+                <p className="text-[10px] font-mono text-slate-500 mt-2">Resume active neural session</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Username / Identifier"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-primary/50 transition-all outline-none"
+                  />
+                </div>
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Security Passphrase"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-primary/50 transition-all outline-none"
+                  />
+                </div>
+                {error && <p className="text-[10px] font-mono text-error uppercase text-center">{error}</p>}
+
+                <button
+                  onClick={handleLogin}
+                  disabled={loading}
+                  className="w-full py-5 rounded-2xl bg-secondary text-black font-black uppercase tracking-widest italic hover:scale-[1.02] transition-all"
+                >
+                  {loading ? 'Authenticating...' : 'Establish_Link'}
                 </button>
               </div>
             </motion.div>
@@ -210,7 +324,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
               <div className="space-y-6">
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-secondary transition-colors">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
                     <Key className="w-5 h-5" />
                   </div>
                   <input
@@ -219,7 +333,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     placeholder="......"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-2xl tracking-[0.5em] text-white focus:border-secondary/50 focus:ring-1 focus:ring-secondary/50 transition-all outline-none text-center"
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-2xl tracking-[0.5em] text-white focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all outline-none text-center"
                   />
                 </div>
                 {error && <p className="text-[10px] font-mono text-error uppercase text-center">{error}</p>}
@@ -250,7 +364,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
               <div className="space-y-4">
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-tertiary transition-colors">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
                     <User className="w-5 h-5" />
                   </div>
                   <input
@@ -258,11 +372,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     placeholder="Username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-tertiary/50 transition-all outline-none"
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-primary/50 transition-all outline-none"
                   />
                 </div>
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-tertiary transition-colors">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
                     <Lock className="w-5 h-5" />
                   </div>
                   <input
@@ -270,7 +384,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-tertiary/50 transition-all outline-none"
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-primary/50 transition-all outline-none"
                   />
                 </div>
                 {error && <p className="text-[10px] font-mono text-error uppercase text-center">{error}</p>}
@@ -278,7 +392,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 <button
                   onClick={handleRegister}
                   disabled={loading}
-                  className="w-full py-5 rounded-2xl bg-tertiary text-black font-black uppercase tracking-widest italic hover:scale-[1.02] transition-all"
+                  className="w-full py-5 rounded-2xl bg-primary text-black font-black uppercase tracking-widest italic hover:scale-[1.02] transition-all"
                 >
                   {loading ? 'Initializing...' : 'Establish_Global_Node'}
                 </button>

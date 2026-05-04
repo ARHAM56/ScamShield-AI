@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx backend/api-gateway/server.ts",
     "start": "tsx backend/api-gateway/server.ts",
-    "build": "vite build frontend",
+    "build": "vite build frontend --outDir ../dist --emptyOutDir",
     "preview": "vite preview frontend",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

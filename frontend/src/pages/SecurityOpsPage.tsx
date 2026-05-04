@@ -116,7 +116,7 @@ export default function SecurityOpsPage() {
 
              <div className="flex-1 space-y-3 font-mono text-[10px] overflow-y-auto max-h-[500px] scrollbar-hide">
                <AnimatePresence mode='popLayout'>
-                 {logs.map((log) => (
+                 {(logs || []).map((log) => (
                    <motion.div
                      key={log.id}
                      initial={{ opacity: 0, x: -20 }}

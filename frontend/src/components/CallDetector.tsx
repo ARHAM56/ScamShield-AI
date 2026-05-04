@@ -19,7 +19,6 @@ export default function CallDetector({ isScanning, onStart, onStop }: CallDetect
       
       <div className="relative z-10 space-y-8">
         <div className="space-y-2">
-          <h3 className="text-2xl font-headline font-black text-white uppercase tracking-tight italic">Scan_Controller</h3>
           <p className="text-[10px] font-mono text-slate-500 uppercase tracking-[0.3em]">Neural Interception Engine v4.2</p>
         </div>
 

@@ -8,11 +8,21 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth();
 
 // Ensure the user is signed in (anonymously) for secure rules to work
+let authRetryCount = 0;
+const MAX_RETRY = 3;
+
 onAuthStateChanged(auth, (user) => {
-  if (!user) {
+  if (!user && authRetryCount < MAX_RETRY) {
     signInAnonymously(auth).catch(err => {
       if (err.code === 'auth/admin-restricted-operation') {
         console.warn("Anonymous auth is disabled in Firebase Console. Some secure features may be restricted.");
+      } else if (err.code === 'auth/network-request-failed') {
+        authRetryCount++;
+        console.warn(`Initial auth network failure (Attempt ${authRetryCount}/${MAX_RETRY}). Retrying in 2s...`);
+        setTimeout(() => {
+          // Re-triggering sign-in if still no user
+          if (!auth.currentUser) signInAnonymously(auth).catch(() => {});
+        }, 2000);
       } else {
         console.error("Initial auth failed:", err);
       }
@@ -20,17 +30,17 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-export async function waitForAuth(): Promise<void> {
+export async function waitForAuth(): Promise<any> {
   return new Promise((resolve) => {
     // If already has a user, or we've explicitly checked and it's null (synced stay)
-    if (auth.currentUser) return resolve();
+    if (auth.currentUser) return resolve(auth.currentUser);
     
     let resolved = false;
     const timeout = setTimeout(() => {
       if (!resolved) {
         console.warn("Auth synchronization timed out. Proceeding with current state.");
         unsubscribe();
-        resolve();
+        resolve(auth.currentUser);
       }
     }, 5000);
 
@@ -38,7 +48,7 @@ export async function waitForAuth(): Promise<void> {
       resolved = true;
       clearTimeout(timeout);
       unsubscribe();
-      resolve();
+      resolve(user);
     });
   });
 }
@@ -92,13 +102,20 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 export async function testConnection() {
   try {
+    // Try to get a public document to verify connectivity
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log("Firebase connection established.");
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration or network status.");
+  } catch (error: any) {
+    if (error.code === 'unavailable' || error.message?.includes('the client is offline')) {
+      console.warn("Firebase service unavailable (client offline?). Operations will resume when connectivity returns.");
+    } else if (error.code === 'permission-denied') {
+      console.error("Firebase permission denied. Check your Firestore rules.");
     } else {
-      console.error("Firebase connection error:", error);
+      console.error("Firebase connection diagnostic:", {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
     }
   }
 }

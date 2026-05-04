@@ -10,8 +10,11 @@ export default function DeveloperPage() {
   useEffect(() => {
     fetch('/api/v1/keys')
       .then(res => res.json())
-      .then(data => setKeys(data.keys))
-      .catch(console.error);
+      .then(data => setKeys(data?.keys || []))
+      .catch(err => {
+        console.error('[DEV] Key retrieval failure:', err);
+        setKeys([]);
+      });
   }, []);
 
   return (

@@ -23,7 +23,7 @@ export default function DashboardPage() {
     // Mock backend stats
     fetch('/api/stats')
       .then(res => res.json())
-      .then(data => setStats(data));
+      .then(data => setStats(data || { vectors: [] }));
 
     // Real-time Intelligence Feed from Firestore
     const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(15));
@@ -327,7 +327,7 @@ export default function DashboardPage() {
             </h3>
             <div className="h-[300px] w-full relative">
               <ResponsiveContainer width="100%" height={300} debounce={100}>
-                <BarChart data={stats.vectors}>
+                <BarChart data={stats?.vectors || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                   <XAxis 
                     dataKey="name" 
@@ -342,7 +342,7 @@ export default function DashboardPage() {
                     contentStyle={{ backgroundColor: '#0a0c10', border: '1px solid #ffffff10', borderRadius: '12px' }}
                   />
                   <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                    {stats.vectors.map((entry: any, index: number) => (
+                    {(stats?.vectors || []).map((entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={index === 0 ? '#8ed5ff' : index === 1 ? '#ffc174' : '#94a3b8'} />
                     ))}
                   </Bar>

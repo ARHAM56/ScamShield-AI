@@ -22,7 +22,10 @@ export default function CallPage() {
     submitFeedback,
     isReportingAvailable,
     isRetraining,
-    voiceTone
+    voiceTone,
+    detectedIntent,
+    showBreachModal,
+    setShowBreachModal
   } = useCallDetection();
 
   const handleReport = async (entry: any) => {
@@ -231,7 +234,6 @@ export default function CallPage() {
           <div className="glass-panel p-8 rounded-[2.5rem] space-y-6">
             <div className="flex items-center gap-3">
               <Terminal className="w-4 h-4 text-primary" />
-              <h3 className="text-xs font-mono text-slate-500 uppercase tracking-[0.3em]">Stream_Metrics</h3>
             </div>
             
             <div className="space-y-4">
@@ -293,8 +295,16 @@ export default function CallPage() {
       </div>
 
       {/* Critical Alert Overlay */}
-      {riskScore > 75 && isScanning && (
-        <RiskAlert score={riskScore} onTerminate={stopDetection} />
+      {showBreachModal && (
+        <RiskAlert 
+          score={riskScore} 
+          scamType={detectedIntent} 
+          onTerminate={() => {
+            stopDetection();
+            setShowBreachModal(false);
+          }} 
+          onDismiss={() => setShowBreachModal(false)}
+        />
       )}
     </div>
   );

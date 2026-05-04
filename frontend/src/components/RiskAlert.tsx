@@ -5,10 +5,12 @@ import { cn } from '../lib/utils';
 
 interface RiskAlertProps {
   score: number;
+  scamType?: string | null;
   onTerminate: () => void;
+  onDismiss?: () => void;
 }
 
-export default function RiskAlert({ score, onTerminate }: RiskAlertProps) {
+export default function RiskAlert({ score, scamType, onTerminate, onDismiss }: RiskAlertProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -27,9 +29,20 @@ export default function RiskAlert({ score, onTerminate }: RiskAlertProps) {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <h2 className="text-4xl font-headline font-black text-white uppercase tracking-tighter italic">Critical_Threat</h2>
-          <p className="text-xs font-mono text-error uppercase tracking-[0.3em] font-bold">Scam Pattern Detected (Confidence: {score}%)</p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h2 className="text-4xl font-headline font-black text-white uppercase tracking-tighter italic">Critical_Threat</h2>
+            {scamType && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="py-2 px-6 bg-error text-white font-mono text-xs font-black rounded-lg inline-block shadow-[0_0_20px_rgba(255,77,77,0.4)] border border-white/20 mb-2 uppercase tracking-widest"
+              >
+                Category: {scamType}
+              </motion.div>
+            )}
+            <p className="text-xs font-mono text-error uppercase tracking-[0.3em] font-bold">Scam Pattern Detected (Confidence: {score}%)</p>
+          </div>
         </div>
 
         <p className="text-sm text-on-surface-variant font-mono leading-relaxed uppercase">
@@ -46,6 +59,7 @@ export default function RiskAlert({ score, onTerminate }: RiskAlertProps) {
           </button>
           
           <button
+            onClick={onDismiss}
             className="w-full bg-white/5 border border-white/10 text-slate-400 font-mono text-[10px] py-4 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest"
           >
             Ignore (Not Recommended)

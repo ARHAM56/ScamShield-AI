@@ -41,21 +41,34 @@ export default function Home() {
     let unsubscribe: (() => void) | undefined;
 
     const syncSub = (user: any) => {
-      if (unsubscribe) unsubscribe();
-      if (!user) return;
+      // Clean up previous sub
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = undefined;
+      }
+      
+      if (!user) {
+        setHistory([]);
+        return;
+      }
 
+      console.log(`[SYNC] Subscribing to Neural Stack for ${user.uid}`);
       const q = query(
         collection(db, `users/${user.uid}/scans`),
         orderBy('timestamp', 'desc'),
-        limit(10)
+        limit(15)
       );
 
       unsubscribe = onSnapshot(q, (snap) => {
-        const scans = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const scans = snap.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          // Use current time if server timestamp is pending
+          timestamp: doc.data().timestamp || { toDate: () => new Date() }
+        }));
         setHistory(scans);
       }, (err) => {
-        console.error("Scan stack sync error:", err);
-        // Silently handle if user just logged out
+        console.warn("Scan stack sync subscription limited:", err.message);
       });
     };
 
@@ -174,12 +187,22 @@ export default function Home() {
       if (userId) {
         try {
           console.log(`[STORAGE_TRIGGER] Persisting scan for ${userId}`);
-          await addDoc(collection(db, `users/${userId}/scans`), {
+          const scanDoc = {
             content: input,
             result: data,
             userId: userId,
             timestamp: serverTimestamp()
+          };
+          
+          await addDoc(collection(db, `users/${userId}/scans`), scanDoc);
+          
+          // Optimistic local update to ensure instant visibility
+          setHistory(prev => {
+            const exists = prev.find(h => h.content === input);
+            if (exists) return prev;
+            return [{ id: 'pending-' + Date.now(), ...scanDoc, timestamp: { toDate: () => new Date() } }, ...prev].slice(0, 15);
           });
+          
           console.log('[STORAGE_SUCCESS] Scan committed to Neural Stack');
         } catch (dbErr) {
           console.warn('[STORAGE_FAULT] Scan commit failed:', dbErr);

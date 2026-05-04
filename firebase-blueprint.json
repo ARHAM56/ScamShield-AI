@@ -7,9 +7,10 @@
       "properties": {
         "username": { "type": "string", "description": "Display name of the user" },
         "phone": { "type": "string", "description": "Verified phone number" },
+        "status": { "type": "string", "description": "Active status of the node" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["username", "phone", "createdAt"]
+      "required": ["username", "phone", "status", "createdAt"]
     },
     "SiemLog": {
       "title": "SIEM Log",

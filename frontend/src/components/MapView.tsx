@@ -30,7 +30,8 @@ export default function MapView() {
     // 1. Initial Map Seed Data
     fetch('/api/map-data')
       .then(res => res.json())
-      .then(data => setThreats(data));
+      .then(data => setThreats(Array.isArray(data) ? data : []))
+      .catch(() => setThreats([]));
 
     // 2. Real-time Live Intel Sync from Firestore
     const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(10));

@@ -55,7 +55,7 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
     : "";
 
   const response = await callAiWithRetry({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: [{
       role: "user",
       parts: [{
@@ -102,6 +102,8 @@ export function useCallDetection() {
   const [errorMessage] = useState<string | null>(null);
   const [isRetraining, setIsRetraining] = useState(false);
   const [voiceTone, setVoiceTone] = useState<'CALM' | 'STRESSED' | 'ANGRY' | 'NEUTRAL'>('NEUTRAL');
+  const [detectedIntent, setDetectedIntent] = useState<string | null>(null);
+  const [showBreachModal, setShowBreachModal] = useState(false);
 
   // Fetch recent scam intel for "Neural Memory"
   const getRecentScamIntel = async () => {
@@ -121,6 +123,8 @@ export function useCallDetection() {
   const startDetection = useCallback(() => {
     setIsScanning(true);
     setRiskScore(0);
+    setDetectedIntent(null);
+    setShowBreachModal(false);
     setTranscript([]);
   }, []);
 
@@ -227,6 +231,10 @@ export function useCallDetection() {
 
       if (calculatedRisk > 45) {
         setRiskScore(prev => Math.max(prev, calculatedRisk));
+        if (calculatedRisk > 75) {
+          setDetectedIntent(result.intent || 'SUSPICIOUS_PATTERN');
+          setShowBreachModal(true);
+        }
       }
     } catch (e: any) {
       console.error('Detection pipeline fault:', e);
@@ -288,6 +296,8 @@ export function useCallDetection() {
   const stopDetection = useCallback(() => {
     setIsScanning(false);
     setRiskScore(0);
+    setDetectedIntent(null);
+    setShowBreachModal(false);
   }, []);
 
   // [RL_STRATEGY]: Reinforcement Learning Feedback Loop
@@ -331,6 +341,9 @@ export function useCallDetection() {
     isReportingAvailable: !!auth.currentUser,
     isRetraining,
     voiceTone,
+    detectedIntent,
+    showBreachModal,
+    setShowBreachModal,
     connectionStatus,
     errorMessage
   };

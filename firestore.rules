@@ -33,10 +33,11 @@ service cloud.firestore {
     // --- Validation Blueprints ---
 
     function isValidUser(data) {
-      return data.keys().hasAll(['username', 'phone', 'createdAt']) &&
-             data.keys().size() == 3 &&
+      return data.keys().hasAll(['username', 'phone', 'createdAt', 'status']) &&
+             data.keys().size() == 4 &&
              data.username is string && data.username.size() <= 50 &&
              data.phone is string && data.phone.size() <= 20 &&
+             data.status is string &&
              data.createdAt == request.time;
     }
 
