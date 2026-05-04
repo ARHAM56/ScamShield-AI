@@ -240,6 +240,22 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     </>
                   )}
                 </button>
+
+                <div className="pt-6 border-t border-white/5 flex flex-col items-center gap-4">
+                  <div className="flex flex-col items-center gap-1">
+                    <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Connection Issues?</p>
+                    <button 
+                      onClick={() => {
+                        localStorage.setItem('NEURAL_ONBOARD_COMPLETED', 'TRUE');
+                        localStorage.setItem('ARHAM_NODE_SESSION', 'ACTIVE');
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] font-mono text-secondary hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest"
+                    >
+                      Emergency_Bypass (Skip_Verification)
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
