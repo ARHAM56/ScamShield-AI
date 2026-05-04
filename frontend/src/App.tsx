@@ -45,6 +45,13 @@ export default function App() {
     }
     setIsCheckingSession(false);
 
+    // Global bypass for developer convenience (Console command: SENTINEL_BYPASS())
+    (window as any).SENTINEL_BYPASS = () => {
+      localStorage.setItem('NEURAL_ONBOARD_COMPLETED', 'TRUE');
+      localStorage.setItem('ARHAM_NODE_SESSION', 'ACTIVE');
+      window.location.reload();
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);
@@ -56,7 +63,10 @@ export default function App() {
   if (isCheckingSession) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent animate-spin rounded-full" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent animate-spin rounded-full" />
+          <p className="font-mono text-[8px] text-primary uppercase tracking-[0.3em]">Neural_Sync_Initializing</p>
+        </div>
       </div>
     );
   }
@@ -68,6 +78,10 @@ export default function App() {
         onComplete={() => {
           localStorage.setItem('NEURAL_ONBOARD_COMPLETED', 'TRUE');
           setIsOnboarded(true);
+          // If session was marked active by a bypass/registration, skip lock
+          if (localStorage.getItem('ARHAM_NODE_SESSION') === 'ACTIVE') {
+            setIsAuthorized(true);
+          }
         }} 
       />
     );

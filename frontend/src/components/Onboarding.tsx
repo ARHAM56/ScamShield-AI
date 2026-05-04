@@ -18,6 +18,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [activePhone, setActivePhone] = useState('');
   const [useWhatsApp, setUseWhatsApp] = useState(false);
 
   const handleLogin = async () => {
@@ -64,18 +65,27 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         body: JSON.stringify({ phone: formattedPhone, useWhatsApp })
       });
       
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Request failed');
+      let data;
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`INTERNAL_LINK_ERR: Unexpected response format. (${res.status})`);
       }
 
+      if (!res.ok) {
+        throw new Error(data.message || data.error || `NEURAL_GATE_DENIED: ${res.status}`);
+      }
+
+      setActivePhone(formattedPhone);
       if (data.demoOtp) {
         setOtp(data.demoOtp);
       }
       setStep('otp');
     } catch (e: any) {
       console.error('[Onboarding] Request fault:', e);
-      setError(e.message || 'NEURAL_LINK_FAULT: Re-try required.');
+      setError(`${e.message || 'NEURAL_LINK_FAULT'} - Re-synchronize required.`);
     } finally {
       setLoading(false);
     }
@@ -88,7 +98,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       const res = await fetch('/api/v1/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp })
+        body: JSON.stringify({ phone: activePhone, otp })
       });
       if (res.ok) setStep('register');
       else setError('Invalid access code.');
@@ -108,7 +118,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       const res = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, phone })
+        body: JSON.stringify({ username, password, phone: activePhone })
       });
       const data = await res.json();
       if (data.status === 'SUCCESS') {
@@ -226,13 +236,27 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 </button>
 
                 <div className="pt-4 flex flex-col items-center">
-                  <p className="text-[10px] font-mono text-slate-500 uppercase">Existing Node?</p>
-                  <button 
-                    onClick={() => setStep('login')}
-                    className="text-[10px] font-mono text-primary hover:underline uppercase mt-1"
-                  >
-                    Establish Session Link
-                  </button>
+                  <p className="text-[10px] font-mono text-slate-500 uppercase">Need full node access?</p>
+                  <div className="flex gap-4 mt-1">
+                    <button 
+                      onClick={() => setStep('login')}
+                      className="text-[10px] font-mono text-primary hover:underline uppercase"
+                    >
+                      Establish Session Link
+                    </button>
+                    <span className="text-[10px] font-mono text-slate-700">|</span>
+                    <button 
+                      onClick={() => {
+                        localStorage.setItem('sentinel_token', 'demo_token');
+                        localStorage.setItem('ARHAM_NODE_SESSION', 'ACTIVE');
+                        setStep('success');
+                        setTimeout(onComplete, 1000);
+                      }}
+                      className="text-[10px] font-mono text-secondary hover:underline uppercase"
+                    >
+                      Bypass_Verification?
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
