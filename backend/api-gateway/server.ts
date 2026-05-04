@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
@@ -52,6 +53,7 @@ export async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(cors());
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -350,7 +352,8 @@ export async function startServer() {
     });
 
     apiRouter.get('/health', (req, res) => {
-      res.json({ status: 'SENTINEL_CORE_ONLINE', version: '1.2.0' });
+      console.log(`[HEALTH_CHK] Pulse from ${req.ip}`);
+      res.json({ status: 'SENTINEL_CORE_ONLINE', version: '1.2.0', timestamp: new Date().toISOString() });
     });
 
     // Mount API routes

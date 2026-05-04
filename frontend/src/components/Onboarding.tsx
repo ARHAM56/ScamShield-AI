@@ -85,7 +85,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       setStep('otp');
     } catch (e: any) {
       console.error('[Onboarding] Request fault:', e);
-      setError(`${e.message || 'NEURAL_LINK_FAULT'} - Re-synchronize required.`);
+      // Detailed error for troubleshooting
+      const errorMsg = e.message || 'NEURAL_LINK_FAULT';
+      setError(`${errorMsg} - Link integrity compromised. Use Bypass if manual sync fails.`);
     } finally {
       setLoading(false);
     }
@@ -180,6 +182,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 <p className="text-xs font-mono text-slate-500 uppercase tracking-widest mt-2">
                   Identity initiation sequence v1.0
                 </p>
+                <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">Neural_Core_Pulse: Reachable</span>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -252,9 +258,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                         setStep('success');
                         setTimeout(onComplete, 1000);
                       }}
-                      className="text-[10px] font-mono text-secondary hover:underline uppercase"
+                      className="text-[10px] font-mono text-secondary hover:underline uppercase transition-all hover:text-white"
                     >
-                      Bypass_Verification?
+                      Emergency_Bypass? (Direct Link)
                     </button>
                   </div>
                 </div>
