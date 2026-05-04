@@ -7,7 +7,7 @@ interface OnboardingProps {
   onComplete: () => void;
 }
 
-type Step = 'phone' | 'otp' | 'register' | 'login' | 'success';
+type Step = 'phone' | 'otp' | 'register' | 'success';
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState<Step>('phone');
@@ -20,32 +20,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const [activePhone, setActivePhone] = useState('');
   const [useWhatsApp, setUseWhatsApp] = useState(false);
+  const [coreStatus, setCoreStatus] = useState<'OFFLINE' | 'ONLINE' | 'CHECKING'>('CHECKING');
 
-  const handleLogin = async () => {
-    if (!username || !password) return setError('Credentials required');
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem('sentinel_token', data.token);
-        localStorage.setItem('ARHAM_NODE_SESSION', 'ACTIVE');
-        setStep('success');
-        setTimeout(onComplete, 1500);
-      } else {
-        setError(data.message || 'Authentication failed.');
+  React.useEffect(() => {
+    const checkPulse = async () => {
+      try {
+        const res = await fetch('/api/health');
+        if (res.ok) setCoreStatus('ONLINE');
+        else setCoreStatus('OFFLINE');
+      } catch {
+        setCoreStatus('OFFLINE');
       }
-    } catch (e) {
-      setError('Neural connection failed.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    checkPulse();
+  }, []);
 
   const handleRequestOtp = async () => {
     let formattedPhone = phone.trim();
@@ -183,8 +171,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   Identity initiation sequence v1.0
                 </p>
                 <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">Neural_Core_Pulse: Reachable</span>
+                  <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", 
+                    coreStatus === 'ONLINE' ? "bg-green-500" : coreStatus === 'CHECKING' ? "bg-yellow-500" : "bg-red-500"
+                  )} />
+                  <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">
+                    Neural_Core: {coreStatus}
+                  </span>
                 </div>
               </div>
 
@@ -226,7 +218,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   </button>
                 </div>
 
-                {error && <p className="text-[10px] font-mono text-error uppercase text-center">{error}</p>}
+                {error && (
+                  <div 
+                    onClick={() => setError(null)}
+                    className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 cursor-pointer hover:bg-red-500/20 transition-colors"
+                  >
+                    <p className="text-[10px] font-mono text-red-500 uppercase text-center">{error}</p>
+                    <p className="text-[8px] font-mono text-red-500/50 uppercase text-center mt-1">Check Neural_Core status or click to dismiss</p>
+                  </div>
+                )}
                 
                 <button
                   onClick={handleRequestOtp}
@@ -239,88 +239,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
-                </button>
-
-                <div className="pt-4 flex flex-col items-center">
-                  <p className="text-[10px] font-mono text-slate-500 uppercase">Need full node access?</p>
-                  <div className="flex gap-4 mt-1">
-                    <button 
-                      onClick={() => setStep('login')}
-                      className="text-[10px] font-mono text-primary hover:underline uppercase"
-                    >
-                      Establish Session Link
-                    </button>
-                    <span className="text-[10px] font-mono text-slate-700">|</span>
-                    <button 
-                      onClick={() => {
-                        localStorage.setItem('sentinel_token', 'demo_token');
-                        localStorage.setItem('ARHAM_NODE_SESSION', 'ACTIVE');
-                        setStep('success');
-                        setTimeout(onComplete, 1000);
-                      }}
-                      className="text-[10px] font-mono text-secondary hover:underline uppercase transition-all hover:text-white"
-                    >
-                      Emergency_Bypass? (Direct Link)
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 'login' && (
-            <motion.div
-              key="login"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
-            >
-              <button 
-                onClick={() => setStep('phone')}
-                className="flex items-center gap-2 text-[10px] font-mono text-slate-500 hover:text-white transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" /> RE_ROUTE
-              </button>
-
-              <div className="text-center">
-                <h3 className="text-3xl font-black italic text-white uppercase tracking-tighter">Node_Authentication</h3>
-                <p className="text-[10px] font-mono text-slate-500 mt-2">Resume active neural session</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
-                    <User className="w-5 h-5" />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Username / Identifier"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-primary/50 transition-all outline-none"
-                  />
-                </div>
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
-                    <Lock className="w-5 h-5" />
-                  </div>
-                  <input
-                    type="password"
-                    placeholder="Security Passphrase"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-14 pr-6 font-mono text-sm text-white focus:border-primary/50 transition-all outline-none"
-                  />
-                </div>
-                {error && <p className="text-[10px] font-mono text-error uppercase text-center">{error}</p>}
-
-                <button
-                  onClick={handleLogin}
-                  disabled={loading}
-                  className="w-full py-5 rounded-2xl bg-secondary text-black font-black uppercase tracking-widest italic hover:scale-[1.02] transition-all"
-                >
-                  {loading ? 'Authenticating...' : 'Establish_Link'}
                 </button>
               </div>
             </motion.div>

@@ -167,9 +167,10 @@ export async function startServer() {
     const otps = new Map();
     // Request OTP Route
     apiRouter.post("/v1/auth/request-otp", async (req, res) => {
+      console.log(`[AUTH_OTP_REQ] Starting sequence for ${req.body.phone}`);
       try {
         const { phone, useWhatsApp } = req.body;
-        console.log(`[AUTH_OTP] Request for phone: ${phone}, whatsapp: ${useWhatsApp}`);
+        console.log(`[AUTH_OTP] Fields: phone=${phone}, whatsapp=${useWhatsApp}`);
         
         if (!phone) {
           return res.status(400).json({ error: "MISSING_PHONE", message: "Phone number is required." });
@@ -236,34 +237,6 @@ export async function startServer() {
         res.json({ status: "SUCCESS", message: "Phone verified." });
       } else {
         res.status(401).json({ error: "INVALID_OTP", message: "The code you entered is incorrect." });
-      }
-    });
-
-    apiRouter.post("/v1/auth/login", async (req, res) => {
-      const { username, password } = req.body;
-      try {
-        const database = getDb();
-        if (database) {
-          const userSnapshot = await database.collection('users')
-            .where('username', '==', username)
-            .limit(1)
-            .get();
-
-          if (userSnapshot.empty) {
-            return res.status(401).json({ error: "INVALID_CREDENTIALS", message: "Node not found." });
-          }
-
-          // In a real app, we would verify the password hash here.
-          // For this high-tech demo, we'll allow secure direct match or simulate bypass.
-          const user = userSnapshot.docs[0].data();
-          const token = jwt.sign({ username, phone: user.phone }, JWT_SECRET, { expiresIn: '7d' });
-          
-          pushSiemLog("USER_LOGIN", "LOW", `Node session established: ${username}`, (req.ip || "0.0.0.0").toString()).catch(() => {});
-          return res.json({ status: "SUCCESS", token, username });
-        }
-      } catch (error) {
-        console.error('[LOGIN_FAULT]', error);
-        res.status(500).json({ error: "SERVER_FAULT" });
       }
     });
 
