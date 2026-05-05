@@ -7,7 +7,6 @@ import { fileURLToPath } from "url";
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { handleVoiceStream } from './routes/voice_ws';
-import twilio from 'twilio';
 import jwt from 'jsonwebtoken';
 import analyzeRouter from './routes/analyze';
 import dotenv from 'dotenv';
@@ -53,7 +52,12 @@ export async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors());
+  app.use(cors({
+    origin: true, // Dynamically allow originating request
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  }));
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -107,51 +111,6 @@ export async function startServer() {
         console.error('[SIEM_LOG_FAULT]', error);
         return { type, severity, message, ip, timestamp: new Date() };
       }
-    };
-
-    // Twilio Integration (Lazy Loaded)
-    let twilioClient: any = null;
-    const getTwilioClient = () => {
-      if (!twilioClient) {
-        const accountSid = process.env.TWILIO_ACCOUNT_SID;
-        const authToken = process.env.TWILIO_AUTH_TOKEN;
-        if (accountSid && authToken) {
-          twilioClient = (twilio as any)(accountSid, authToken);
-        }
-      }
-      return twilioClient;
-    };
-
-    const sendSms = async (to: string, message: string) => {
-      try {
-        const client = getTwilioClient();
-        const from = process.env.TWILIO_PHONE_NUMBER;
-        if (client && from) {
-          await client.messages.create({ body: message, from, to });
-          return true;
-        }
-      } catch (error) {
-        console.error('[SMS_FAULT]', error);
-      }
-      return false;
-    };
-
-    const sendWhatsApp = async (to: string, message: string) => {
-      try {
-        const client = getTwilioClient();
-        const from = 'whatsapp:+14155238886'; // Twilio Sandbox
-        if (client) {
-          await client.messages.create({ 
-            body: message, 
-            from: from, 
-            to: `whatsapp:${to.startsWith('+') ? to : '+' + to}` 
-          });
-          return true;
-        }
-      } catch (error) {
-        console.error('[WHATSAPP_FAULT]', error);
-      }
-      return false;
     };
 
     const apiRouter = express.Router();
@@ -214,15 +173,6 @@ export async function startServer() {
 
     apiRouter.post("/v1/auth/verify-otp", async (req, res) => {
       const { phone, otp } = req.body;
-      const client = getTwilioClient();
-      const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-
-      if (client && serviceSid) {
-        try {
-          const verification = await client.verify.v2.services(serviceSid).verificationChecks.create({ to: phone, code: otp });
-          if (verification.status === 'approved') return res.json({ status: "SUCCESS", message: "Phone verified." });
-        } catch (err) {}
-      }
 
       if (otps.get(phone) === otp) {
         res.json({ status: "SUCCESS", message: "Phone verified." });
@@ -321,17 +271,23 @@ export async function startServer() {
     });
 
     // Mount API routes
-    app.use('/api', apiRouter);
+    app.use('/api', (req, res, next) => {
+      res.setHeader('Content-Type', 'application/json');
+      next();
+    }, apiRouter);
 
     // Global JSON Error Handler
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
       console.error('[GLOBAL_ERROR]', err);
       if (res.headersSent) return next(err);
-      res.status(500).json({
+      
+      // Ensure we always return JSON
+      res.status(err.status || 500).json({
         status: 'ERROR',
-        error: 'INTERNAL_SERVER_ERROR',
-        message: 'A critical neural link failure occurred.',
-        snippet: err.message?.substring(0, 100)
+        error: err.code || 'INTERNAL_SERVER_ERROR',
+        message: err.message || 'A critical neural link failure occurred.',
+        integrity_check: 'FAILED',
+        timestamp: new Date().toISOString()
       });
     });
 
