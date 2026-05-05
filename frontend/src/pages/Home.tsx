@@ -62,12 +62,14 @@ export default function Home() {
       );
 
       unsubscribe = onSnapshot(q, (snap) => {
-        const scans = snap.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data(),
-          // Use current time if server timestamp is pending
-          timestamp: doc.data().timestamp || { toDate: () => new Date() }
-        }));
+        const scans = snap.docs.map(doc => {
+          const data = doc.data({ serverTimestamps: 'estimate' });
+          return { 
+            id: doc.id, 
+            ...data,
+            timestamp: data.timestamp || { toDate: () => new Date() }
+          };
+        });
         setHistory(scans);
       }, (err) => {
         console.warn("Scan stack sync subscription limited:", err.message);

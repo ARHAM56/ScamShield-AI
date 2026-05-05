@@ -43,3 +43,31 @@ ScamShield AI is a distributed security platform designed for real-time threat d
 - **Real-time Metrics**: Live traffic and threat visualization.
 - **Anomaly Logging**: Detailed logs for security auditing.
 - **Alert Manager**: Instant notifications for critical breaches.
+
+## 🚀 Deployment (Production Guide)
+
+If you are deploying this app to GitHub and then to a host like **Render**, **Railway**, or **Vercel**, follow these steps:
+
+### 1. Environment Variables
+Ensure the following variables are set in your hosting provider's dashboard:
+- `GEMINI_API_KEY`: Your Google AI Studio API key.
+- `JWT_SECRET`: A long random string for auth security.
+- `VITE_FIREBASE_PROJECT_ID`: Your Firebase Project ID.
+- `VITE_FIREBASE_FIRESTORE_DATABASE_ID`: (Optional) Your Firestore Database ID.
+
+### 2. Build & Start Commands
+- **Build Command**: `npm run build`
+- **Start Command**: `npm start` (or `node server.ts` if your host supports TypeScript natively, otherwise build the server first).
+- **OutDir**: The build process creates a `dist` folder in the root. The server is configured to serve this folder.
+
+### 3. Database Sync
+This app uses **Firebase (Firestore)** for real-time logs and user data. 
+1. Go to your Firebase Console.
+2. Enable **Firestore Database**.
+3. Apply the security rules found in `firestore.rules`.
+4. Ensure your project ID matches the environment variable.
+
+### 4. Common Issues
+- **Backend not working?** Check logs in your host provider's dashboard. Usually, it's a missing `GEMINI_API_KEY` or `JWT_SECRET`.
+- **CORS Errors?** The server is configured to allow `origin: true`. If you have specific frontend domains, update the `cors()` config in `backend/api-gateway/server.ts`.
+- **Blank Screen?** Make sure `npm run build` completed successfully and the `dist` folder exists in the root.

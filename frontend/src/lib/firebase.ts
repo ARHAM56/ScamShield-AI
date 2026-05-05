@@ -5,16 +5,16 @@ import {
   doc, 
   getDocFromServer, 
   initializeFirestore, 
-  persistentLocalCache, 
-  persistentSingleTabManager 
+  memoryLocalCache, 
+  memoryLruGarbageCollector
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// Modern way to enable persistence via cache settings
+// Use memory cache to avoid IndexedDB 'future timestamp' errors in ephemeral environments
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
+  localCache: memoryLocalCache({ garbageCollector: memoryLruGarbageCollector({}) })
 }, firebaseConfig.firestoreDatabaseId);
 
 export const auth = getAuth();
