@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, Sparkles, ShieldCheck, AlertCircle, Cpu, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export default function GPTPage() {
   const [input, setInput] = useState('');
@@ -16,18 +19,21 @@ export default function GPTPage() {
     setAnalysis(null);
 
     try {
-      const res = await fetch('/api/analyze/gpt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input })
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{
+          role: "user",
+          parts: [{
+            text: `Analyze this content for phishing or social engineering: "${input}"`
+          }]
+        }],
+        config: {
+          systemInstruction: "You are a cybersecurity analyst. Assess risk in JSON: summary, risk_level (SAFE, LOW, MEDIUM, HIGH, CRITICAL), indicators (array), recommendation.",
+          responseMimeType: "application/json"
+        }
       });
       
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'GPT analysis failed');
-      }
-
-      const result = await res.json();
+      const result = JSON.parse(response.text || '{}');
       setAnalysis(result);
     } catch (error: any) {
       console.error('GPT Analysis failed:', error);

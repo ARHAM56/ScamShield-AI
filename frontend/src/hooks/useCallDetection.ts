@@ -1,25 +1,25 @@
 import { useState, useCallback } from 'react';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { db, auth, waitForAuth, handleFirestoreError } from '../lib/firebase';
+import { GoogleGenAI, Type } from "@google/genai";
 
-// Helper for resilient AI calls via backend proxy
-const callAiProxy = async (endpoint: string, body: any, retries = 2) => {
+// Initialize Gemini directly in frontend as per skill directive
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Helper for resilient AI calls with exponential backoff
+const callAiWithRetry = async (params: any, retries = 2) => {
   for (let i = 0; i <= retries; i++) {
     try {
-      const res = await fetch(`/api/analyze${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'AI service unavailable');
-      }
-      return await res.json();
+      return await ai.models.generateContent(params);
     } catch (err: any) {
       if (i === retries) throw err;
-      console.warn(`[AI_RETRY] Neural core signal flicker. Attempt ${i + 1}...`);
-      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+      const isTransient = err?.message?.includes('500') || err?.message?.includes('INTERNAL') || err?.message?.includes('safety');
+      if (isTransient) {
+        console.warn(`[AI_RETRY] Neural Core signal flicker. Retrying attempt ${i + 1}...`);
+        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      throw err;
     }
   }
 };
@@ -31,7 +31,12 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
     ? `\n[NEURAL_MEMORY] Pattern_Delta: ${sanitizedScams.join(' | ')}`
     : "";
 
-  const prompt = `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
+  const response = await callAiWithRetry({
+    model: "gemini-3-flash-preview",
+    contents: [{
+      role: "user",
+      parts: [{
+        text: `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
         Analyze the conversation intent using: Behavioral Heuristics, Manipulation Vectors, and Neural Memory.
         
         ${memoryContext}
@@ -43,19 +48,26 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
         3. Risk Weight: 0-100 (Scale with Tone/Emotion)
         4. Insight: Professional security brief.
         
-        Input: "${text}"`;
+        Input: "${text}"`
+      }]
+    }],
+    config: { 
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          intent: { type: Type.STRING },
+          emotion: { type: Type.STRING },
+          risk: { type: Type.NUMBER },
+          language: { type: Type.STRING },
+          insight: { type: Type.STRING },
+          cleanedText: { type: Type.STRING }
+        }
+      }
+    }
+  });
 
-  const result = await callAiProxy('/text', { text: prompt });
-  
-  // Normalize result to match expected schema
-  return {
-    intent: result.status || result.intent || 'UNKNOWN',
-    emotion: result.emotion || (result.markers?.[0]) || 'NEUTRAL',
-    risk: result.score || result.risk || 0,
-    language: result.language || 'en',
-    insight: result.message || result.insight || 'Analysis complete.',
-    cleanedText: text
-  };
+  return JSON.parse(response?.text || '{}');
 };
 
 interface TranscriptEntry {
@@ -234,7 +246,27 @@ export function useCallDetection() {
 
   const transcribeAudio = useCallback(async (base64Audio: string, mimeType: string) => {
     try {
-      const resultData = await callAiProxy('/audio', { audio: base64Audio, mimeType });
+      const response = await callAiWithRetry({
+        model: "gemini-3-flash-preview",
+        contents: {
+          parts: [
+            { text: "Analyze this audio snippet. 1. Transcribe the speech accurately (Hindi/English/Hinglish). 2. Detect the speaker's TONE (Choose EXACTLY ONE from [ANGRY, STRESSED, CALM, NEUTRAL]). Return JSON: { 'text': string, 'tone': string }. If no speech, text should be '[NO_SPEECH]' and tone 'NEUTRAL'." },
+            { inlineData: { mimeType, data: base64Audio } }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              text: { type: Type.STRING },
+              tone: { type: Type.STRING }
+            }
+          }
+        }
+      });
+      
+      const resultData = JSON.parse(response?.text || '{}');
       
       const transcriptText = resultData.text;
       const detectedTone = resultData.tone || 'NEUTRAL';

@@ -8,7 +8,6 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { handleVoiceStream } from './routes/voice_ws';
 import jwt from 'jsonwebtoken';
-import analyzeRouter from './routes/analyze';
 import dotenv from 'dotenv';
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -114,7 +113,6 @@ export async function startServer() {
     };
 
     const apiRouter = express.Router();
-    apiRouter.use('/analyze', analyzeRouter);
 
     const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_demo';
 
