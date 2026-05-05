@@ -4,7 +4,8 @@ import { db, auth, waitForAuth, handleFirestoreError } from '../lib/firebase';
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Initialize Gemini directly in frontend as per skill directive
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
+const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
 
 // Helper for resilient AI calls with exponential backoff
 const callAiWithRetry = async (params: any, retries = 2) => {

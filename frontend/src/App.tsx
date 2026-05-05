@@ -30,20 +30,39 @@ export default function App() {
 
   useEffect(() => {
     // Initial boot tests
-    testConnection();
+    console.log("[APP] Initializing Neural Node...");
+    
+    const initTimer = setTimeout(() => {
+       if (isCheckingSession) {
+         console.warn("[APP] Initialization timeout. Forcing session ready state.");
+         setIsCheckingSession(false);
+       }
+    }, 3000);
+
+    try {
+      testConnection();
+    } catch (e) {
+      console.error("[APP] Firebase sync fault:", e);
+    }
 
     // Check if user has ever registered
-    const onboardStatus = localStorage.getItem('NEURAL_ONBOARD_COMPLETED');
-    if (onboardStatus === 'TRUE') {
-      setIsOnboarded(true);
-    }
+    try {
+      const onboardStatus = localStorage.getItem('NEURAL_ONBOARD_COMPLETED');
+      if (onboardStatus === 'TRUE') {
+        setIsOnboarded(true);
+      }
 
-    // Check if current session is authorized
-    const session = localStorage.getItem('ARHAM_NODE_SESSION');
-    if (session === 'ACTIVE') {
-      setIsAuthorized(true);
+      // Check if current session is authorized
+      const session = localStorage.getItem('ARHAM_NODE_SESSION');
+      if (session === 'ACTIVE') {
+        setIsAuthorized(true);
+      }
+    } catch (e) {
+      console.error("[APP] LocalStorage access blocked:", e);
     }
+    
     setIsCheckingSession(false);
+    clearTimeout(initTimer);
 
     // Global bypass for developer convenience (Console command: SENTINEL_BYPASS())
     (window as any).SENTINEL_BYPASS = () => {
