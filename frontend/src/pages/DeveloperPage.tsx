@@ -3,12 +3,14 @@ import { motion } from 'motion/react';
 import { Terminal, Key, Shield, Network, Activity, Cpu, Database, Eye, EyeOff, Copy, Plus } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+import { getApiUrl } from '../lib/api';
+
 export default function DeveloperPage() {
   const [keys, setKeys] = useState<any[]>([]);
   const [showKeyId, setShowKeyId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/v1/keys')
+    fetch(getApiUrl('/api/v1/keys'))
       .then(res => res.json())
       .then(data => setKeys(data?.keys || []))
       .catch(err => {

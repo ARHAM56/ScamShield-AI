@@ -11,6 +11,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
 
@@ -46,6 +47,16 @@ const getDb = () => {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize Gemini (Server-Side)
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+let ai: GoogleGenAI | null = null;
+
+if (GEMINI_API_KEY) {
+  ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+} else {
+  console.warn("[SERVER_AI] GEMINI_API_KEY is not defined. AI features will be disabled.");
+}
 
 export async function startServer() {
   const app = express();
@@ -265,7 +276,71 @@ export async function startServer() {
 
     apiRouter.get('/health', (req, res) => {
       console.log(`[HEALTH_CHK] Pulse from ${req.ip}`);
-      res.json({ status: 'SENTINEL_CORE_ONLINE', version: '1.2.0', timestamp: new Date().toISOString() });
+      res.json({ status: 'SENTINEL_CORE_ONLINE', version: '1.2.0', timestamp: new Date().toISOString(), ai_enabled: !!ai });
+    });
+
+    // AI Proxy Routes
+    apiRouter.post("/v1/ai/analyze", async (req, res) => {
+      if (!ai) return res.status(503).json({ error: "AI_CORE_OFFLINE", message: "Gemini API key missing on server." });
+      
+      const { prompt, schema } = req.body;
+      try {
+        const response = await ai.models.generateContent({ 
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: schema
+          }
+        });
+
+        res.json(JSON.parse(response.text || '{}'));
+      } catch (err: any) {
+        console.error("[AI_ANALYZE_FAULT]", err);
+        res.status(500).json({ error: "AI_INTEL_FAILURE", message: err.message });
+      }
+    });
+
+    apiRouter.post("/v1/ai/transcribe", async (req, res) => {
+      if (!ai) return res.status(503).json({ error: "AI_CORE_OFFLINE", message: "Gemini API key missing on server." });
+      
+      const { audio, mimeType, prompt, schema } = req.body;
+      try {
+        const response = await ai.models.generateContent({ 
+          model: "gemini-3-flash-preview",
+          contents: {
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType, data: audio } }
+            ]
+          },
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: schema
+          }
+        });
+        
+        res.json(JSON.parse(response.text || '{}'));
+      } catch (err: any) {
+        console.error("[AI_TRANSCRIBE_FAULT]", err);
+        res.status(500).json({ error: "AI_INTEL_FAILURE", message: err.message });
+      }
+    });
+
+    apiRouter.post("/v1/ai/chat", async (req, res) => {
+      if (!ai) return res.status(503).json({ error: "AI_CORE_OFFLINE", message: "Gemini API key missing on server." });
+      
+      const { message } = req.body;
+      try {
+        const response = await ai.models.generateContent({ 
+          model: "gemini-3-flash-preview",
+          contents: message
+        });
+        res.json({ text: response.text });
+      } catch (err: any) {
+        console.error("[AI_CHAT_FAULT]", err);
+        res.status(500).json({ error: "AI_CHAT_FAILURE", message: err.message });
+      }
     });
 
     // Mount API routes

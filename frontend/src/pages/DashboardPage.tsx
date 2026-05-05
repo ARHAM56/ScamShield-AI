@@ -6,6 +6,8 @@ import { cn } from '../lib/utils';
 import { collection, query, orderBy, limit, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+import { getApiUrl } from '../lib/api';
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [recentReports, setRecentReports] = useState<any[]>([]);
@@ -21,7 +23,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // Mock backend stats
-    fetch('/api/stats')
+    fetch(getApiUrl('/api/stats'))
       .then(res => res.json())
       .then(data => setStats(data || { vectors: [] }));
 
@@ -30,7 +32,7 @@ export default function DashboardPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const reports = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data({ serverTimestamps: 'estimate' })
       }));
       setRecentReports(reports.slice(0, 5));
       

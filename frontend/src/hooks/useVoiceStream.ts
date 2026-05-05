@@ -1,8 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
-
-const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
+import { getApiUrl } from '../lib/api';
 
 // Helper to add WAV header (16kHz, mono, 16-bit PCM)
 function addWavHeader(pcmData: Uint8Array): Uint8Array {
@@ -41,13 +38,24 @@ export function useVoiceStream() {
 
   const analyzeTranscript = async (text: string) => {
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ role: "user", parts: [{ text: `Analyze this call snippet for scam risk: "${text}". Return JSON: { "risk_score": number, "scam_type": string, "warning_message": string }` }] }],
-        config: { responseMimeType: "application/json" }
+      const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `Analyze this call snippet for scam risk: "${text}".`,
+          schema: {
+            type: 'object',
+            properties: {
+              risk_score: { type: 'number' },
+              scam_type: { type: 'string' },
+              warning_message: { type: 'string' }
+            }
+          }
+        })
       });
       
-      const result = JSON.parse(response.text || '{}');
+      if (!res.ok) throw new Error("AI_ANALYZE_FAULT");
+      const result = await res.json();
       return { 
         risk_score: result.risk_score || 45, 
         scam_type: result.scam_type || "UNKNOWN", 
@@ -71,20 +79,25 @@ export function useVoiceStream() {
       const wavData = addWavHeader(pcmData);
       const base64Wav = btoa(String.fromCharCode(...wavData));
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: "Transcribe this audio call snippet. Listen carefully for phishing or scam attempts. Return ONLY the transcription text." },
-              { inlineData: { mimeType: "audio/wav", data: base64Wav } }
-            ]
+      const res = await fetch(getApiUrl('/api/v1/ai/transcribe'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio: base64Wav,
+          mimeType: "audio/wav",
+          prompt: "Transcribe this audio call snippet. Listen carefully for phishing or scam attempts. Return ONLY the transcription text.",
+          schema: {
+            type: 'object',
+            properties: {
+              text: { type: 'string' }
+            }
           }
-        ]
+        })
       });
 
-      const transcriptText = response.text;
+      if (!res.ok) throw new Error("AI_TRANSCRIBE_FAULT");
+      const data = await res.json();
+      const transcriptText = data.text;
       if (transcriptText && transcriptText.trim()) {
         console.log('[VOICE_HOOK] Neural Transcribe:', transcriptText);
         

@@ -68,6 +68,14 @@ This app uses **Firebase (Firestore)** for real-time logs and user data.
 4. Ensure your project ID matches the environment variable.
 
 ### 4. Common Issues
-- **Backend not working?** Check logs in your host provider's dashboard. Usually, it's a missing `GEMINI_API_KEY` or `JWT_SECRET`.
-- **CORS Errors?** The server is configured to allow `origin: true`. If you have specific frontend domains, update the `cors()` config in `backend/api-gateway/server.ts`.
-- **Blank Screen?** Make sure `npm run build` completed successfully and the `dist` folder exists in the root.
+### AI Integration Details
+- **Provider**: Google Gemini
+- **Security**: The `GEMINI_API_KEY` is kept **server-side** in the `backend/api-gateway/server.ts` to prevent exposure in the browser.
+- **Workflow**: Frontend sends requests to `/api/v1/ai/*` -> Backend appends the key and calls Google APIs -> Response is returned to frontend.
+
+### Troubleshooting
+- **NEURAL_CORE_OFFLINE / Connection Fault?**
+  - This means the frontend cannot reach the backend `/api/health` endpoint.
+  - **Environment Variables**: Ensure `GEMINI_API_KEY` and `JWT_SECRET` are set in your deployment platform's environment variables dashboard.
+  - **Backend URL**: If the frontend is on a different domain, you MUST set `VITE_API_BASE_URL` on the frontend host.
+  - **Local Dev**: Ensure you have a `.env` file with these keys.

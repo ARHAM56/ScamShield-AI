@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, Phone, Key, User, Lock, ArrowRight, CheckCircle2, ChevronLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { getApiUrl } from '../lib/api';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -25,7 +26,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   React.useEffect(() => {
     const checkPulse = async () => {
       try {
-        const res = await fetch('/api/health').catch(() => ({ ok: false }));
+        const res = await fetch(getApiUrl('/api/health')).catch(() => ({ ok: false }));
         if (res && 'ok' in res && res.ok) setCoreStatus('ONLINE');
         else setCoreStatus('OFFLINE');
       } catch {
@@ -47,7 +48,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/v1/auth/request-otp', {
+      const res = await fetch(getApiUrl('/api/v1/auth/request-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: formattedPhone, useWhatsApp })
@@ -86,7 +87,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/v1/auth/verify-otp', {
+      const res = await fetch(getApiUrl('/api/v1/auth/verify-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: activePhone, otp })
@@ -106,7 +107,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/v1/auth/register', {
+      const res = await fetch(getApiUrl('/api/v1/auth/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, phone: activePhone })
@@ -171,13 +172,38 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 <p className="text-xs font-mono text-slate-500 uppercase tracking-widest mt-2">
                   Identity initiation sequence v1.0
                 </p>
-                <div className="mt-4 flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
-                  <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", 
-                    coreStatus === 'ONLINE' ? "bg-green-500" : coreStatus === 'CHECKING' ? "bg-yellow-500" : "bg-red-500"
-                  )} />
-                  <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">
-                    Neural_Core: {coreStatus}
-                  </span>
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+                    <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", 
+                      coreStatus === 'ONLINE' ? "bg-green-500" : coreStatus === 'CHECKING' ? "bg-yellow-500" : "bg-red-500"
+                    )} />
+                    <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">
+                      Neural_Core: {coreStatus}
+                    </span>
+                  </div>
+                  {coreStatus === 'OFFLINE' && (
+                    <button 
+                      onClick={() => {
+                        setCoreStatus('CHECKING');
+                        // Wait a bit to simulate re-checking
+                        setTimeout(() => {
+                           const checkPulse = async () => {
+                             try {
+                               const res = await fetch(getApiUrl('/api/health')).catch(() => ({ ok: false }));
+                               if (res && 'ok' in res && res.ok) setCoreStatus('ONLINE');
+                               else setCoreStatus('OFFLINE');
+                             } catch {
+                               setCoreStatus('OFFLINE');
+                             }
+                           };
+                           checkPulse();
+                        }, 1000);
+                      }}
+                      className="text-[8px] font-mono text-primary underline uppercase tracking-widest hover:text-white"
+                    >
+                      Retry_Link
+                    </button>
+                  )}
                 </div>
               </div>
 

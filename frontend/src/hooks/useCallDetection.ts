@@ -1,29 +1,8 @@
 import { useState, useCallback } from 'react';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { db, auth, waitForAuth, handleFirestoreError } from '../lib/firebase';
-import { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize Gemini directly in frontend as per skill directive
-const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
-
-// Helper for resilient AI calls with exponential backoff
-const callAiWithRetry = async (params: any, retries = 2) => {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      return await ai.models.generateContent(params);
-    } catch (err: any) {
-      if (i === retries) throw err;
-      const isTransient = err?.message?.includes('500') || err?.message?.includes('INTERNAL') || err?.message?.includes('safety');
-      if (isTransient) {
-        console.warn(`[AI_RETRY] Neural Core signal flicker. Retrying attempt ${i + 1}...`);
-        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-        continue;
-      }
-      throw err;
-    }
-  }
-};
+import { getApiUrl } from '../lib/api';
 
 // [SENTINEL_RISK_ENGINE] Strategy-based analysis pipeline
 const analyzeIntentVector = async (text: string, tone: string, recentScams: string[]) => {
@@ -32,43 +11,39 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
     ? `\n[NEURAL_MEMORY] Pattern_Delta: ${sanitizedScams.join(' | ')}`
     : "";
 
-  const response = await callAiWithRetry({
-    model: "gemini-3-flash-preview",
-    contents: [{
-      role: "user",
-      parts: [{
-        text: `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
-        Analyze the conversation intent using: Behavioral Heuristics, Manipulation Vectors, and Neural Memory.
-        
-        ${memoryContext}
-        Current_Tone_Feedback: ${tone}
-        
-        Detection Requirements:
-        1. Emotion Classification: [FEAR, URGENCY, GREED, AUTHORITY, NEUTRAL]
-        2. Intent Pattern: [FINANCIAL_FRAUD, SPOOFING, ACCOUNT_THREAT, SOCIAL_ENGINEERING, SAFE]
-        3. Risk Weight: 0-100 (Scale with Tone/Emotion)
-        4. Insight: Professional security brief.
-        
-        Input: "${text}"`
-      }]
-    }],
-    config: { 
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
+  const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
+      Analyze the conversation intent using: Behavioral Heuristics, Manipulation Vectors, and Neural Memory.
+      
+      ${memoryContext}
+      Current_Tone_Feedback: ${tone}
+      
+      Detection Requirements:
+      1. Emotion Classification: [FEAR, URGENCY, GREED, AUTHORITY, NEUTRAL]
+      2. Intent Pattern: [FINANCIAL_FRAUD, SPOOFING, ACCOUNT_THREAT, SOCIAL_ENGINEERING, SAFE]
+      3. Risk Weight: 0-100 (Scale with Tone/Emotion)
+      4. Insight: Professional security brief.
+      
+      Input: "${text}"`,
+      schema: {
+        type: 'object',
         properties: {
-          intent: { type: Type.STRING },
-          emotion: { type: Type.STRING },
-          risk: { type: Type.NUMBER },
-          language: { type: Type.STRING },
-          insight: { type: Type.STRING },
-          cleanedText: { type: Type.STRING }
+          intent: { type: 'string' },
+          emotion: { type: 'string' },
+          risk: { type: 'number' },
+          language: { type: 'string' },
+          insight: { type: 'string' },
+          cleanedText: { type: 'string' }
         }
       }
-    }
+    })
   });
 
-  return JSON.parse(response?.text || '{}');
+  if (!res.ok) throw new Error(`Neural Analysis Failure: ${res.statusText}`);
+  return await res.json();
 };
 
 interface TranscriptEntry {
@@ -247,27 +222,25 @@ export function useCallDetection() {
 
   const transcribeAudio = useCallback(async (base64Audio: string, mimeType: string) => {
     try {
-      const response = await callAiWithRetry({
-        model: "gemini-3-flash-preview",
-        contents: {
-          parts: [
-            { text: "Analyze this audio snippet. 1. Transcribe the speech accurately (Hindi/English/Hinglish). 2. Detect the speaker's TONE (Choose EXACTLY ONE from [ANGRY, STRESSED, CALM, NEUTRAL]). Return JSON: { 'text': string, 'tone': string }. If no speech, text should be '[NO_SPEECH]' and tone 'NEUTRAL'." },
-            { inlineData: { mimeType, data: base64Audio } }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
+      const res = await fetch(getApiUrl('/api/v1/ai/transcribe'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio: base64Audio,
+          mimeType,
+          prompt: "Analyze this audio snippet. 1. Transcribe the speech accurately (Hindi/English/Hinglish). 2. Detect the speaker's TONE (Choose EXACTLY ONE from [ANGRY, STRESSED, CALM, NEUTRAL]). Return JSON: { 'text': string, 'tone': string }. If no speech, text should be '[NO_SPEECH]' and tone 'NEUTRAL'.",
+          schema: {
+            type: 'object',
             properties: {
-              text: { type: Type.STRING },
-              tone: { type: Type.STRING }
+              text: { type: 'string' },
+              tone: { type: 'string' }
             }
           }
-        }
+        })
       });
-      
-      const resultData = JSON.parse(response?.text || '{}');
+
+      if (!res.ok) throw new Error(`Neural Transcription Failure: ${res.statusText}`);
+      const resultData = await res.json();
       
       const transcriptText = resultData.text;
       const detectedTone = resultData.tone || 'NEUTRAL';
@@ -309,7 +282,7 @@ export function useCallDetection() {
     if (!entry) return;
 
     try {
-      await fetch('/api/v1/feedback', {
+      await fetch(getApiUrl('/api/v1/feedback'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

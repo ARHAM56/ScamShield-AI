@@ -8,27 +8,7 @@ import { collection, query, where, getDocs, orderBy, limit, addDoc, onSnapshot, 
 import { db, waitForAuth, auth, handleFirestoreError } from '../lib/firebase';
 import { Layers, History, Hash, Clock } from 'lucide-react';
 
-// Initialize Gemini directly in frontend as per skill directive
-const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
-
-// Helper for resilient AI calls with exponential backoff
-const callAiWithRetry = async (params: any, retries = 2) => {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      return await ai.models.generateContent(params);
-    } catch (err: any) {
-      if (i === retries) throw err;
-      const isTransient = err?.message?.includes('500') || err?.message?.includes('INTERNAL') || err?.message?.includes('safety');
-      if (isTransient) {
-        console.warn(`[AI_RETRY] Neural Core signal flicker. Retrying attempt ${i + 1}...`);
-        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-        continue;
-      }
-      throw err;
-    }
-  }
-};
+import { getApiUrl } from '../lib/api';
 
 export default function Home() {
   const [input, setInput] = useState('');
@@ -90,7 +70,7 @@ export default function Home() {
     try {
       const q = query(collection(db, 'reports'), where('riskScore', '>=', 80), orderBy('riskScore', 'desc'), limit(5));
       const snap = await getDocs(q);
-      return snap.docs.map(doc => doc.data().content).filter(Boolean);
+      return snap.docs.map(doc => doc.data({ serverTimestamps: 'estimate' }).content).filter(Boolean);
     } catch (e) {
       return [];
     }
@@ -143,41 +123,40 @@ export default function Home() {
         ? `\n[NEURAL_MEMORY] Confirmed Phishing Patterns: ${sanitizedScams.join(' | ')}`
         : "";
 
-      const response = await callAiWithRetry({
-        model: "gemini-3-flash-preview",
-        contents: [{
-          role: "user",
-          parts: [{
-            text: `Analyze this content for scam/phishing risk. Content can be SMS, Email, or URL.
-            ${personalMemory}
-            ${memoryContext}
-            
-            Compare the input with [NEURAL_MEMORY] and [PERSONAL_NEURAL_GRADIENT]. 
-            If the input similarity to a previous high-risk scan is > 85%, use that as a primary factor.
-            
-            1. Rate risk (0-100).
-            2. Identify threat markers (e.g., SUSPICIOUS_PATTERN, URGENCY, FINANCIAL_SPOOF).
-            3. Classification: Phishing, Spam, or Safe.
-            
-            Input: "${input}"`
-          }]
-        }],
-        config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
+      const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `Analyze this content for scam/phishing risk. Content can be SMS, Email, or URL.
+          ${personalMemory}
+          ${memoryContext}
+          
+          Compare the input with [NEURAL_MEMORY] and [PERSONAL_NEURAL_GRADIENT]. 
+          If the input similarity to a previous high-risk scan is > 85%, use that as a primary factor.
+          
+          1. Rate risk (0-100).
+          2. Identify threat markers (e.g., SUSPICIOUS_PATTERN, URGENCY, FINANCIAL_SPOOF).
+          3. Classification: Phishing, Spam, or Safe.
+          
+          Input: "${input}"`,
+          schema: {
+            type: 'object',
             properties: {
-              status: { type: Type.STRING },
-              score: { type: Type.NUMBER },
-              markers: { type: Type.ARRAY, items: { type: Type.STRING } },
-              model: { type: Type.STRING }
+              status: { type: 'string' },
+              score: { type: 'number' },
+              markers: { 
+                type: 'array',
+                items: { type: 'string' }
+              },
+              model: { type: 'string' }
             },
             required: ["status", "score", "markers", "model"]
           }
-        }
+        })
       });
 
-      const data = JSON.parse(response?.text || '{"status":"error","score":0,"markers":[],"model":"FALLBACK"}');
+      if (!res.ok) throw new Error(`Neural Analysis Failure: ${res.statusText}`);
+      const data = await res.json();
 
       if (reputation > 0) {
         data.score = Math.max(data.score, 99);

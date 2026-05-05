@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, Sparkles, ShieldCheck, AlertCircle, Cpu, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { GoogleGenAI } from "@google/genai";
-
-const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
+import { getApiUrl } from '../lib/api';
 
 export default function GPTPage() {
   const [input, setInput] = useState('');
@@ -20,21 +17,28 @@ export default function GPTPage() {
     setAnalysis(null);
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{
-          role: "user",
-          parts: [{
-            text: `Analyze this content for phishing or social engineering: "${input}"`
-          }]
-        }],
-        config: {
-          systemInstruction: "You are a cybersecurity analyst. Assess risk in JSON: summary, risk_level (SAFE, LOW, MEDIUM, HIGH, CRITICAL), indicators (array), recommendation.",
-          responseMimeType: "application/json"
-        }
+      const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `Analyze this content for phishing or social engineering: "${input}"`,
+          schema: {
+            type: 'object',
+            properties: {
+              summary: { type: 'string' },
+              risk_level: { type: 'string' },
+              indicators: { 
+                type: 'array',
+                items: { type: 'string' }
+              },
+              recommendation: { type: 'string' }
+            }
+          }
+        })
       });
       
-      const result = JSON.parse(response.text || '{}');
+      if (!res.ok) throw new Error(`Neural Link Offline: ${res.statusText}`);
+      const result = await res.json();
       setAnalysis(result);
     } catch (error: any) {
       console.error('GPT Analysis failed:', error);

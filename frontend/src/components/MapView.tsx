@@ -7,8 +7,11 @@ import { cn } from '../lib/utils';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+import { getApiUrl } from '../lib/api';
+
 // Fix for Leaflet icons in React
 import L from 'leaflet';
+
 // @ts-ignore
 import icon from 'leaflet/dist/images/marker-icon.png';
 // @ts-ignore
@@ -28,7 +31,7 @@ export default function MapView() {
 
   useEffect(() => {
     // 1. Initial Map Seed Data
-    fetch('/api/map-data')
+    fetch(getApiUrl('/api/map-data'))
       .then(res => res.json())
       .then(data => setThreats(Array.isArray(data) ? data : []))
       .catch(() => setThreats([]));
@@ -37,7 +40,7 @@ export default function MapView() {
     const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(10));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const liveReports = snapshot.docs.map(doc => {
-        const data = doc.data();
+        const data = doc.data({ serverTimestamps: 'estimate' });
         // Generate pseudo-location based on node/metadata if not present
         // In a real app, this would come from sanitized geolocation
         return {

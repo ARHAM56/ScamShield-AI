@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Shield, ShieldAlert, ShieldCheck, Activity, Terminal, Zap, Lock, Globe, AlertTriangle, Eye, Server, Radio, Database } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+import { getApiUrl } from '../lib/api';
+
 export default function SecurityOpsPage() {
   const [metrics, setMetrics] = useState<any>({
     blockedAttacks: 0,
@@ -17,7 +19,7 @@ export default function SecurityOpsPage() {
 
   const fetchMetrics = async () => {
     try {
-      const res = await fetch('/api/v1/security/metrics');
+      const res = await fetch(getApiUrl('/api/v1/security/metrics'));
       const data = await res.json();
       if (data.metrics) setMetrics(data.metrics);
       if (data.logs) setLogs(data.logs);
@@ -36,7 +38,7 @@ export default function SecurityOpsPage() {
     setIsSimulating(true);
     setLastDefense(null);
     try {
-      const res = await fetch('/api/v1/security/simulate-attack', {
+      const res = await fetch(getApiUrl('/api/v1/security/simulate-attack'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type })

@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import { Megaphone, ShieldAlert, Send, FileText, Globe, Lock, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+import { getApiUrl } from '../lib/api';
+
 export default function Report() {
   const [formData, setFormData] = useState({
     type: 'PHISHING_URL',
@@ -18,7 +20,7 @@ export default function Report() {
     setIsSubmitting(true);
     
     try {
-      const response = await fetch('/api/report', {
+      const response = await fetch(getApiUrl('/api/report'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
