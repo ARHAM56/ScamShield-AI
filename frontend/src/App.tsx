@@ -33,17 +33,22 @@ export default function App() {
     console.log("[APP] Initializing Neural Node...");
     
     const initTimer = setTimeout(() => {
-       if (isCheckingSession) {
-         console.warn("[APP] Initialization timeout. Forcing session ready state.");
-         setIsCheckingSession(false);
-       }
+       setIsCheckingSession(false);
+       console.warn("[APP] Initialization timeout. Proceeding in fallback mode.");
     }, 3000);
 
-    try {
-      testConnection();
-    } catch (e) {
-      console.error("[APP] Firebase sync fault:", e);
-    }
+    const initApp = async () => {
+      try {
+        await testConnection();
+      } catch (e) {
+        console.error("[APP] Firebase sync fault. Using edge intelligence:", e);
+      } finally {
+        setIsCheckingSession(false);
+        clearTimeout(initTimer);
+      }
+    };
+
+    initApp();
 
     // Check if user has ever registered
     try {
@@ -60,9 +65,6 @@ export default function App() {
     } catch (e) {
       console.error("[APP] LocalStorage access blocked:", e);
     }
-    
-    setIsCheckingSession(false);
-    clearTimeout(initTimer);
 
     // Global bypass for developer convenience (Console command: SENTINEL_BYPASS())
     (window as any).SENTINEL_BYPASS = () => {

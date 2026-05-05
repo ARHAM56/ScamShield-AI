@@ -25,8 +25,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   React.useEffect(() => {
     const checkPulse = async () => {
       try {
-        const res = await fetch('/api/health');
-        if (res.ok) setCoreStatus('ONLINE');
+        const res = await fetch('/api/health').catch(() => ({ ok: false }));
+        if (res && 'ok' in res && res.ok) setCoreStatus('ONLINE');
         else setCoreStatus('OFFLINE');
       } catch {
         setCoreStatus('OFFLINE');
