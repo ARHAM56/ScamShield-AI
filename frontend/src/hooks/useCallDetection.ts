@@ -5,8 +5,8 @@ import { db, auth, waitForAuth, handleFirestoreError } from '../lib/firebase';
 import { getApiUrl } from '../lib/api';
 
 // [SENTINEL_RISK_ENGINE] Strategy-based analysis pipeline
-const analyzeIntentVector = async (text: string, tone: string, recentScams: string[]) => {
-  const sanitizedScams = recentScams.map(s => s.length > 200 ? s.substring(0, 200) + '...' : s);
+const analyzeIntentVector = async (text: string, tone: string, recentScams: string[] = []) => {
+  const sanitizedScams = (recentScams || []).map(s => s.length > 200 ? s.substring(0, 200) + '...' : s);
   const memoryContext = sanitizedScams.length > 0 
     ? `\n[NEURAL_MEMORY] Pattern_Delta: ${sanitizedScams.join(' | ')}`
     : "";

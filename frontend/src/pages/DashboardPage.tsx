@@ -24,8 +24,21 @@ export default function DashboardPage() {
   useEffect(() => {
     // Mock backend stats
     fetch(getApiUrl('/api/stats'))
-      .then(res => res.json())
-      .then(data => setStats(data || { vectors: [] }));
+      .then(async res => {
+        if (!res.ok) throw new Error(`HTTP_${res.status}`);
+        return res.json();
+      })
+      .then(data => setStats(data))
+      .catch(err => {
+        console.error("[STATS_FAULT]", err);
+        setStats({
+          total_scans: "---",
+          confirmed_phishing: "---",
+          blocked_threats: "---",
+          safe_urls: "---",
+          vectors: []
+        });
+      });
 
     // Real-time Intelligence Feed from Firestore
     const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(15));
@@ -118,9 +131,9 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="text-xs font-mono text-slate-400 uppercase tracking-[0.2em] mb-1">{stat.label}</p>
-              <h2 className="text-5xl font-headline font-black text-white italic tracking-tighter">
-                {stat.label === "Confirmed Phishing" ? stats.confirmed_phishing.replace('42.8K', dbCount) : stat.value}
-              </h2>
+                  <h2 className="text-5xl font-headline font-black text-white italic tracking-tighter">
+                    {stat.label === "Confirmed Phishing" ? String(stat.value || "").replace('42.8K', String(dbCount)) : stat.value}
+                  </h2>
             </div>
           </motion.div>
         ))}
@@ -130,7 +143,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: "Neural Load", value: stats.total_scans, icon: Activity, trend: "+12%", color: "primary" },
-          { label: "Intel DB Size", value: stats.confirmed_phishing.replace('42.8K', dbCount), icon: ShieldAlert, trend: "+5%", color: "error" },
+          { label: "Intel DB Size", value: String(stats.confirmed_phishing || "").replace('42.8K', String(dbCount)), icon: ShieldAlert, trend: "+5%", color: "error" },
           { label: "Neural Uptime", value: stats.safe_urls, icon: Zap, trend: "Stable", color: "tertiary" },
           { label: "Active Nodes", value: "142", icon: Globe, trend: "+3", color: "primary" }
         ].map((stat, i) => (

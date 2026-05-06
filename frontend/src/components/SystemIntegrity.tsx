@@ -8,6 +8,7 @@ import { collection, getDocs, limit, query } from 'firebase/firestore';
 export default function SystemIntegrity() {
   const [dbStatus, setDbStatus] = useState({ state: 'Analyzing', load: 12 });
   const [authStatus, setAuthStatus] = useState({ state: 'Analyzing', load: 5 });
+  const [neuralCore, setNeuralCore] = useState({ state: 'Optimal', load: 42 });
 
   useEffect(() => {
     const checkSystems = async () => {
@@ -26,6 +27,19 @@ export default function SystemIntegrity() {
       } else {
         setAuthStatus({ state: 'Passive', load: 15 });
       }
+
+      // Check Neural Health
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        setNeuralCore({ 
+          state: data.ai_status === 'SIMULATED' ? 'Simulated' : 
+                 data.ai_status === 'ONLINE' ? 'Optimal' : 'Offline', 
+          load: data.ai_status === 'SIMULATED' ? 12 : 42 
+        });
+      } catch (e) {
+        setNeuralCore({ state: 'Offline', load: 0 });
+      }
     };
 
     checkSystems();
@@ -34,7 +48,7 @@ export default function SystemIntegrity() {
   }, []);
 
   const systems = [
-    { name: 'Neural_Core_v4', status: 'Optimal', load: 42, icon: Cpu },
+    { name: 'Neural_Core_v4', status: neuralCore.state, load: neuralCore.load, icon: Cpu },
     { name: 'Global_Threat_DB', status: dbStatus.state, load: dbStatus.load, icon: Database },
     { name: 'RealTime_Interceptor', status: 'Active', load: 64, icon: Zap },
     { name: 'Edge_Nodes', status: 'Operational', load: 31, icon: Globe },

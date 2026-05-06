@@ -21,16 +21,35 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const [activePhone, setActivePhone] = useState('');
   const [useWhatsApp, setUseWhatsApp] = useState(false);
-  const [coreStatus, setCoreStatus] = useState<'OFFLINE' | 'ONLINE' | 'CHECKING'>('CHECKING');
+  const [coreStatus, setCoreStatus] = useState<'OFFLINE' | 'ONLINE' | 'SIMULATED' | 'CHECKING'>('CHECKING');
 
   React.useEffect(() => {
     const checkPulse = async () => {
       try {
-        const res = await fetch(getApiUrl('/api/health')).catch(() => ({ ok: false }));
-        if (res && 'ok' in res && res.ok) setCoreStatus('ONLINE');
-        else setCoreStatus('OFFLINE');
-      } catch {
+        const url = getApiUrl('/api/health');
+        const res = await fetch(url).catch(err => {
+          console.error("[PULSE_ERROR] Fetch failed:", err);
+          return null;
+        });
+
+        if (res && res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data && data.status === 'SENTINEL_CORE_ONLINE') {
+            if (data.ai_status === 'SIMULATED') {
+              setCoreStatus('SIMULATED');
+            } else {
+              setCoreStatus('ONLINE');
+            }
+          } else {
+            setCoreStatus('OFFLINE');
+          }
+        } else {
+          setCoreStatus('OFFLINE');
+          console.warn(`[PULSE_WARN] Core responded with status ${res?.status || 'UNKNOWN'}`);
+        }
+      } catch (e) {
         setCoreStatus('OFFLINE');
+        console.error("[PULSE_ERROR] Neural sync fault:", e);
       }
     };
     checkPulse();
@@ -175,7 +194,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 <div className="mt-4 flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
                     <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", 
-                      coreStatus === 'ONLINE' ? "bg-green-500" : coreStatus === 'CHECKING' ? "bg-yellow-500" : "bg-red-500"
+                      coreStatus === 'ONLINE' ? "bg-green-500" : 
+                      coreStatus === 'SIMULATED' ? "bg-blue-500" :
+                      coreStatus === 'CHECKING' ? "bg-yellow-500" : "bg-red-500"
                     )} />
                     <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">
                       Neural_Core: {coreStatus}

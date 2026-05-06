@@ -297,7 +297,7 @@ export default function Home() {
               <div className="space-y-4">
                 <h4 className="text-[10px] font-mono text-slate-500 uppercase tracking-[0.3em]">Threat_Markers</h4>
                 <div className="flex flex-wrap gap-2">
-                  {result.markers.length > 0 ? result.markers.map((marker: string) => (
+                  {(result.markers || []).length > 0 ? (result.markers || []).map((marker: string) => (
                     <span key={marker} className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-mono text-white uppercase">
                       {marker}
                     </span>

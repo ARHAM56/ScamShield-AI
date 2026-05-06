@@ -26,8 +26,8 @@ const MAX_RETRY = 3;
 onAuthStateChanged(auth, (user) => {
   if (!user && authRetryCount < MAX_RETRY) {
     signInAnonymously(auth).catch(err => {
-      if (err.code === 'auth/admin-restricted-operation') {
-        console.warn("Anonymous auth is disabled in Firebase Console. Some secure features may be restricted.");
+      if (err.code === 'auth/admin-restricted-operation' || err.code === 'auth/operation-not-allowed') {
+        console.info("[SECURITY_SYNC] Anonymous auth is not enabled in Firebase Console. This is normal for basic browsing, but some protection features may be limited.");
       } else if (err.code === 'auth/network-request-failed') {
         authRetryCount++;
         console.warn(`Initial auth network failure (Attempt ${authRetryCount}/${MAX_RETRY}). Retrying in 2s...`);

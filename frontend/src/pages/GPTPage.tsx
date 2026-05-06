@@ -147,7 +147,7 @@ export default function GPTPage() {
                     Behavioral_Indicators
                   </h4>
                   <div className="space-y-3">
-                    {analysis.indicators.map((indicator: string, i: number) => (
+                    {(analysis.indicators || []).map((indicator: string, i: number) => (
                       <motion.div
                         key={i}
                         initial={{ opacity: 0, x: 10 }}
