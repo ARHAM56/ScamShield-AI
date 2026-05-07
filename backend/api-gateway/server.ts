@@ -293,11 +293,25 @@ export async function startServer() {
     };
 
     const isAiKeyError = (err: any) => {
-      const msg = err.message || '';
-      return msg.includes('API key not valid') || 
-             msg.includes('INVALID_ARGUMENT') || 
-             msg.includes('400') || 
-             msg.includes('429');
+      const msg = (err.message || String(err) || '').toLowerCase();
+      // @google/genai ApiError might have status in a property or within the JSON message
+      const status = String(err.status || err.code || '').toLowerCase();
+      
+      const isKeyIssue = 
+        msg.includes('api key') || 
+        msg.includes('invalid_argument') || 
+        msg.includes('400') || 
+        msg.includes('401') ||
+        msg.includes('429') ||
+        msg.includes('unauthorized') ||
+        status === '400' ||
+        status === '401' ||
+        status === '429';
+
+      if (isKeyIssue) {
+        console.warn("[AI_RECOVERY] Detected Gemini API key issue. Falling back to Neural Simulation.", { msg, status });
+      }
+      return isKeyIssue;
     };
 
     apiRouter.post("/v1/ai/analyze", async (req, res) => {

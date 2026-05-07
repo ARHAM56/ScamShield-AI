@@ -33,7 +33,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         });
 
         if (res && res.ok) {
-          const data = await res.json().catch(() => null);
+          const text = await res.text().catch(() => '');
+          const data = text ? JSON.parse(text) : null;
           if (data && data.status === 'SENTINEL_CORE_ONLINE') {
             if (data.ai_status === 'SIMULATED') {
               setCoreStatus('SIMULATED');
@@ -131,7 +132,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, phone: activePhone })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (e) {
+        throw new Error("Registration core failure.");
+      }
       if (data.status === 'SUCCESS') {
         localStorage.setItem('sentinel_token', data.token);
         localStorage.setItem('ARHAM_NODE_SESSION', 'ACTIVE');

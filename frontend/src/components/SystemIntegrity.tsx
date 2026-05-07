@@ -31,7 +31,8 @@ export default function SystemIntegrity() {
       // Check Neural Health
       try {
         const res = await fetch('/api/health');
-        const data = await res.json();
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : {};
         setNeuralCore({ 
           state: data.ai_status === 'SIMULATED' ? 'Simulated' : 
                  data.ai_status === 'ONLINE' ? 'Optimal' : 'Offline', 

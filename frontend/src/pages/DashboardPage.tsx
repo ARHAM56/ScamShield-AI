@@ -25,8 +25,9 @@ export default function DashboardPage() {
     // Mock backend stats
     fetch(getApiUrl('/api/stats'))
       .then(async res => {
-        if (!res.ok) throw new Error(`HTTP_${res.status}`);
-        return res.json();
+        const text = await res.text();
+        if (!res.ok) throw new Error(`HTTP_${res.status}: ${text}`);
+        return JSON.parse(text);
       })
       .then(data => setStats(data))
       .catch(err => {

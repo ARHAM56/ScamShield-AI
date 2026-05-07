@@ -11,7 +11,11 @@ export default function DeveloperPage() {
 
   useEffect(() => {
     fetch(getApiUrl('/api/v1/keys'))
-      .then(res => res.json())
+      .then(async res => {
+        const text = await res.text();
+        if (!res.ok) throw new Error(`HTTP_${res.status}: ${text}`);
+        return JSON.parse(text);
+      })
       .then(data => setKeys(data?.keys || []))
       .catch(err => {
         console.error('[DEV] Key retrieval failure:', err);

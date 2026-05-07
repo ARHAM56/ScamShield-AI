@@ -32,7 +32,11 @@ export default function MapView() {
   useEffect(() => {
     // 1. Initial Map Seed Data
     fetch(getApiUrl('/api/map-data'))
-      .then(res => res.json())
+      .then(async res => {
+        const text = await res.text();
+        if (!res.ok) throw new Error(`HTTP_${res.status}`);
+        return text ? JSON.parse(text) : [];
+      })
       .then(data => setThreats(Array.isArray(data) ? data : []))
       .catch(() => setThreats([]));
 

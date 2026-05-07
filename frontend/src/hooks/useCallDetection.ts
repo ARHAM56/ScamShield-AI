@@ -42,8 +42,14 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
     })
   });
 
-  if (!res.ok) throw new Error(`Neural Analysis Failure: ${res.statusText}`);
-  return await res.json();
+  if (!res.ok) throw new Error(`Neural Analysis Failure: ${res.status}`);
+  const textBody = await res.text();
+  try {
+    return textBody ? JSON.parse(textBody) : {};
+  } catch (e) {
+    console.error("[ANALYZE_JSON_FAULT]", e, "Body:", textBody);
+    throw new Error("MALFORMED_RESONSE: Pattern sync failed.");
+  }
 };
 
 interface TranscriptEntry {
@@ -239,8 +245,15 @@ export function useCallDetection() {
         })
       });
 
-      if (!res.ok) throw new Error(`Neural Transcription Failure: ${res.statusText}`);
-      const resultData = await res.json();
+      if (!res.ok) throw new Error(`Neural Transcription Failure: ${res.status}`);
+      const textBody = await res.text();
+      let resultData;
+      try {
+        resultData = textBody ? JSON.parse(textBody) : {};
+      } catch (parseErr) {
+        console.error("[TRANSCRIBE_JSON_FAULT]", parseErr, "Body:", textBody);
+        throw new Error("MALFORMED_SIGNAL: Audio deconstruction failed.");
+      }
       
       const transcriptText = resultData.text;
       const detectedTone = resultData.tone || 'NEUTRAL';

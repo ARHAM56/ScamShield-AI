@@ -37,8 +37,9 @@ export default function GPTPage() {
         })
       });
       
-      if (!res.ok) throw new Error(`Neural Link Offline: ${res.statusText}`);
-      const result = await res.json();
+      if (!res.ok) throw new Error(`Neural Link Offline: ${res.status}`);
+      const text = await res.text();
+      const result = text ? JSON.parse(text) : {};
       setAnalysis(result);
     } catch (error: any) {
       console.error('GPT Analysis failed:', error);

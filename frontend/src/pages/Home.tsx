@@ -155,8 +155,16 @@ export default function Home() {
         })
       });
 
-      if (!res.ok) throw new Error(`Neural Analysis Failure: ${res.statusText}`);
-      const data = await res.json();
+      const text = await res.text();
+      if (!res.ok) throw new Error(`Neural Analysis Failure (HTTP ${res.status}): ${text || 'Empty response'}`);
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        console.error("[JSON_PARSE_FAULT]", parseErr, "Text:", text);
+        throw new Error(`MALFORMED_RESPONSE: Intelligence core synchronization failure.`);
+      }
 
       if (reputation > 0) {
         data.score = Math.max(data.score, 99);
