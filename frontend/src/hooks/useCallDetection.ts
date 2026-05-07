@@ -15,7 +15,9 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
   const ai = getAi();
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
-    contents: `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
+    contents: {
+      parts: [
+        { text: `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
       Analyze the conversation intent using: Behavioral Heuristics, Manipulation Vectors, and Neural Memory.
       
       ${memoryContext}
@@ -27,7 +29,9 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
       3. Risk Weight: 0-100 (Scale with Tone/Emotion)
       4. Insight: Professional security brief.
       
-      Input: "${text}"`,
+      Input: "${text}"` }
+      ]
+    },
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -227,10 +231,12 @@ export function useCallDetection() {
       const ai = getAi();
       const response = await ai.models.generateContent({
         model: MODEL_NAME,
-        contents: [
-          { text: "Analyze this audio snippet. 1. Transcribe the speech accurately (Hindi/English/Hinglish). 2. Detect the speaker's TONE (Choose EXACTLY ONE from [ANGRY, STRESSED, CALM, NEUTRAL]). Return JSON: { 'text': string, 'tone': string }. If no speech, text should be '[NO_SPEECH]' and tone 'NEUTRAL'." },
-          { inlineData: { mimeType, data: base64Audio } }
-        ],
+        contents: {
+          parts: [
+            { text: "Analyze this audio snippet. 1. Transcribe the speech accurately (Hindi/English/Hinglish). 2. Detect the speaker's TONE (Choose EXACTLY ONE from [ANGRY, STRESSED, CALM, NEUTRAL]). Return JSON: { 'text': string, 'tone': string }. If no speech, text should be '[NO_SPEECH]' and tone 'NEUTRAL'." },
+            { inlineData: { mimeType, data: base64Audio } }
+          ]
+        },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
