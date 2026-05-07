@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, Search, Globe, Zap, AlertCircle, CheckCircle2, Database } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { GoogleGenAI, Type } from "@google/genai";
+import { getAi, MODEL_NAME, Type } from '../lib/gemini';
 import RiskBadge from '../components/RiskBadge';
 import { collection, query, where, getDocs, orderBy, limit, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, waitForAuth, auth, handleFirestoreError } from '../lib/firebase';
@@ -123,11 +123,10 @@ export default function Home() {
         ? `\n[NEURAL_MEMORY] Confirmed Phishing Patterns: ${sanitizedScams.join(' | ')}`
         : "";
 
-      const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: `Analyze this content for scam/phishing risk. Content can be SMS, Email, or URL.
+      const ai = getAi();
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: `Analyze this content for scam/phishing risk. Content can be SMS, Email, or URL.
           ${personalMemory}
           ${memoryContext}
           
@@ -139,32 +138,25 @@ export default function Home() {
           3. Classification: Phishing, Spam, or Safe.
           
           Input: "${input}"`,
-          schema: {
-            type: 'object',
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
             properties: {
-              status: { type: 'string' },
-              score: { type: 'number' },
+              status: { type: Type.STRING },
+              score: { type: Type.NUMBER },
               markers: { 
-                type: 'array',
-                items: { type: 'string' }
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
               },
-              model: { type: 'string' }
+              model: { type: Type.STRING }
             },
             required: ["status", "score", "markers", "model"]
           }
-        })
+        }
       });
 
-      const text = await res.text();
-      if (!res.ok) throw new Error(`Neural Analysis Failure (HTTP ${res.status}): ${text || 'Empty response'}`);
-      
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (parseErr) {
-        console.error("[JSON_PARSE_FAULT]", parseErr, "Text:", text);
-        throw new Error(`MALFORMED_RESPONSE: Intelligence core synchronization failure.`);
-      }
+      const data = JSON.parse(response.text || '{}');
 
       if (reputation > 0) {
         data.score = Math.max(data.score, 99);

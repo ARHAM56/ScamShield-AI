@@ -5,17 +5,17 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from 'ws';
+
+// Initialize Gemini (Server-Side) - MIGRATED TO FRONTEND
+// We keep the imports slightly cleaner by removing unnecessary ones
 import { createServer } from 'http';
 import { handleVoiceStream } from './routes/voice_ws';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
-
-// Initialize Firebase Admin (Lazy)
 let db: FirebaseFirestore.Firestore | null = null;
 const getDb = () => {
   if (!db) {
@@ -47,17 +47,6 @@ const getDb = () => {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Initialize Gemini (Server-Side)
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-let ai: GoogleGenAI | null = null;
-
-if (GEMINI_API_KEY) {
-  console.log("[SERVER_AI] GEMINI_API_KEY detected. Initializing Neural Core...");
-  ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-} else {
-  console.warn("[SERVER_AI] GEMINI_API_KEY is missing. Neural Core will operate in SYSTEM_RECOVERY mode (simulated).");
-}
 
 export async function startServer() {
   const app = express();
@@ -259,164 +248,6 @@ export async function startServer() {
       res.json({ ...attack, status: 'BLOCKED' });
     });
 
-    // Neural Simulation (Fallback for Invalid API Keys)
-    const simulateNeuralResponse = (prompt: string, type: 'ANALYZE' | 'CHAT') => {
-      const lower = prompt.toLowerCase();
-      if (type === 'ANALYZE') {
-        const isSuspicious = lower.includes('bank') || lower.includes('login') || lower.includes('password') || lower.includes('verify') || lower.includes('urgent');
-        return {
-          // Home.tsx Schema
-          status: isSuspicious ? 'DANGER' : 'SAFE',
-          score: isSuspicious ? 92 : 12,
-          markers: isSuspicious 
-            ? ['SUSPICIOUS_PATTERN', 'URGENCY_DETECTION', 'CREDENTIAL_HARVEST_IDENTIFIED'] 
-            : ['STANDARD_COMMUNICATION', 'NO_MALICIOUS_VECTORS'],
-          model: "SYSTEM_RECOVERY_HEURISTICS",
-          
-          // GPTPage.tsx Schema
-          summary: `[SYSTEM_RECOVERY] Heuristic analysis detected patterns of ${isSuspicious ? 'credential harvesting' : 'standard communication'}. Neural core in partial offline state.`,
-          risk_level: isSuspicious ? 'CRITICAL' : 'LOW',
-          indicators: isSuspicious 
-            ? ['URGENCY_OVERTONES', 'FINANCIAL_SPOOF_PATTERN', 'INSECURE_LINK_DETECTION']
-            : ['EXPECTED_SEMANTICS', 'VERIFIED_SENDER_PATTERN'],
-          recommendation: isSuspicious ? "BLOCK AND REPORT IMMEDIATELY." : "Proceed with standard caution.",
-          
-          // Legacy/Other
-          riskScore: isSuspicious ? 92 : 15,
-          threatLevel: isSuspicious ? 'CRITICAL' : 'LOW',
-          vector: isSuspicious ? 'PHISHING' : 'SAFE',
-          analysis: `Heuristic scan complete. Potential threats: ${isSuspicious ? 'HIGH' : 'MINIMAL'}.`,
-          simulated: true
-        };
-      }
-      return { text: "Neural link is in SYSTEM_RECOVERY mode. Heuristics active. Please verify GEMINI_API_KEY for full deep-intelligence capability." };
-    };
-
-    const isAiKeyError = (err: any) => {
-      const msg = (err.message || String(err) || '').toLowerCase();
-      // @google/genai ApiError might have status in a property or within the JSON message
-      const status = String(err.status || err.code || '').toLowerCase();
-      
-      const isKeyIssue = 
-        msg.includes('api key') || 
-        msg.includes('invalid_argument') || 
-        msg.includes('400') || 
-        msg.includes('401') ||
-        msg.includes('429') ||
-        msg.includes('unauthorized') ||
-        status === '400' ||
-        status === '401' ||
-        status === '429';
-
-      if (isKeyIssue) {
-        console.warn("[AI_RECOVERY] Detected Gemini API key issue. Falling back to Neural Simulation.", { msg, status });
-      }
-      return isKeyIssue;
-    };
-
-    apiRouter.post("/v1/ai/analyze", async (req, res) => {
-      const { prompt, schema } = req.body;
-      
-      if (!ai) {
-        return res.json(simulateNeuralResponse(prompt, 'ANALYZE'));
-      }
-      
-      try {
-        const response = await ai.models.generateContent({ 
-          model: "gemini-3-flash-preview",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: schema
-          }
-        });
-
-        res.json(JSON.parse(response.text || '{}'));
-      } catch (err: any) {
-        console.error("[AI_ANALYZE_FAULT]", err);
-        if (isAiKeyError(err)) {
-          return res.json(simulateNeuralResponse(prompt, 'ANALYZE'));
-        }
-        res.status(500).json({ error: "AI_INTEL_FAILURE", message: err.message });
-      }
-    });
-
-    apiRouter.post("/v1/ai/transcribe", async (req, res) => {
-      const { audio, mimeType, prompt, schema } = req.body;
-      
-      const simulatedData = { 
-        analysis: "[SYSTEM_RECOVERY] Audio intelligence simulated. Heuristics suggest high risk matching known phishing scripts.",
-        riskScore: 88,
-        threatLevel: 'HIGH',
-        vector: 'VOICE_PHISHING',
-        status: 'DANGER',
-        score: 88,
-        markers: ['VOICE_PATTERN_MATCH', 'URGENCY_DETECTION'],
-        indicators: ['ARTIFICIAL_TONE', 'SCRIPTED_URGENCY'],
-        recommendation: "DISCONNECT CALL IMMEDIATELY.",
-        simulated: true
-      };
-
-      if (!ai) return res.json(simulatedData);
-      
-      try {
-        const response = await ai.models.generateContent({ 
-          model: "gemini-3-flash-preview",
-          contents: {
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType, data: audio } }
-            ]
-          },
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: schema
-          }
-        });
-        
-        res.json(JSON.parse(response.text || '{}'));
-      } catch (err: any) {
-        console.error("[AI_TRANSCRIBE_FAULT]", err);
-        if (isAiKeyError(err)) {
-          return res.json(simulatedData);
-        }
-        res.status(500).json({ error: "AI_INTEL_FAILURE", message: err.message });
-      }
-    });
-
-    apiRouter.post("/v1/ai/chat", async (req, res) => {
-      const { message } = req.body;
-
-      if (!ai) {
-        return res.json(simulateNeuralResponse(message, 'CHAT'));
-      }
-
-      try {
-        const response = await ai.models.generateContent({ 
-          model: "gemini-3-flash-preview",
-          contents: message
-        });
-        res.json({ text: response.text });
-      } catch (err: any) {
-        console.error("[AI_CHAT_FAULT]", err);
-        if (isAiKeyError(err)) {
-          return res.json(simulateNeuralResponse(message, 'CHAT'));
-        }
-        res.status(500).json({ error: "AI_CHAT_FAILURE", message: err.message });
-      }
-    });
-
-    apiRouter.post("/analyze-tone", (req, res) => {
-      const tones = ['CALM', 'STRESSED', 'ANGRY', 'NEUTRAL'];
-      res.json({ tone: tones[Math.floor(Math.random() * tones.length)], confidence: 0.9 });
-    });
-
-    apiRouter.post("/detect", (req, res) => {
-      const { input } = req.body;
-      const isSuspicious = input?.toLowerCase().includes('bank');
-      res.json({ status: "success", score: isSuspicious ? 92 : 12 });
-    });
-
     apiRouter.get("/stats", (req, res) => {
       res.json({ 
         total_scans: "1.2M", 
@@ -462,24 +293,13 @@ export async function startServer() {
     });
 
     apiRouter.get('/health', async (req, res) => {
-      let ai_status: 'ONLINE' | 'SIMULATED' | 'OFFLINE' = ai ? 'ONLINE' : 'SIMULATED';
-      
-      // Verification attempt if AI seems online but might have an invalid key
-      if (ai) {
-        try {
-          // No-op or light call to verify key
-        } catch (e) {
-          ai_status = 'SIMULATED';
-        }
-      }
-
       res.json({ 
         status: 'SENTINEL_CORE_ONLINE', 
         version: '1.2.0', 
         timestamp: new Date().toISOString(), 
-        ai_enabled: !!ai,
-        ai_status: ai_status,
-        recovery_mode: ai_status === 'SIMULATED'
+        ai_enabled: true,
+        ai_status: 'ONLINE',
+        recovery_mode: false
       });
     });
 

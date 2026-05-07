@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, Sparkles, ShieldCheck, AlertCircle, Cpu, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { getApiUrl } from '../lib/api';
+import { getAi, MODEL_NAME, Type } from '../lib/gemini';
 
 export default function GPTPage() {
   const [input, setInput] = useState('');
@@ -17,29 +17,29 @@ export default function GPTPage() {
     setAnalysis(null);
 
     try {
-      const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: `Analyze this content for phishing or social engineering: "${input}"`,
-          schema: {
-            type: 'object',
+      const ai = getAi();
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: `Analyze this content for phishing or social engineering: "${input}"`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
             properties: {
-              summary: { type: 'string' },
-              risk_level: { type: 'string' },
+              summary: { type: Type.STRING },
+              risk_level: { type: Type.STRING },
               indicators: { 
-                type: 'array',
-                items: { type: 'string' }
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
               },
-              recommendation: { type: 'string' }
-            }
+              recommendation: { type: Type.STRING }
+            },
+            required: ["summary", "risk_level", "indicators", "recommendation"]
           }
-        })
+        }
       });
       
-      if (!res.ok) throw new Error(`Neural Link Offline: ${res.status}`);
-      const text = await res.text();
-      const result = text ? JSON.parse(text) : {};
+      const result = JSON.parse(response.text || '{}');
       setAnalysis(result);
     } catch (error: any) {
       console.error('GPT Analysis failed:', error);

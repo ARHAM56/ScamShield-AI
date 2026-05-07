@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { db, auth, waitForAuth, handleFirestoreError } from '../lib/firebase';
 
+import { getAi, MODEL_NAME, Type } from '../lib/gemini';
 import { getApiUrl } from '../lib/api';
 
 // [SENTINEL_RISK_ENGINE] Strategy-based analysis pipeline
@@ -11,11 +12,10 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
     ? `\n[NEURAL_MEMORY] Pattern_Delta: ${sanitizedScams.join(' | ')}`
     : "";
 
-  const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
+  const ai = getAi();
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
       Analyze the conversation intent using: Behavioral Heuristics, Manipulation Vectors, and Neural Memory.
       
       ${memoryContext}
@@ -28,28 +28,24 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
       4. Insight: Professional security brief.
       
       Input: "${text}"`,
-      schema: {
-        type: 'object',
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
         properties: {
-          intent: { type: 'string' },
-          emotion: { type: 'string' },
-          risk: { type: 'number' },
-          language: { type: 'string' },
-          insight: { type: 'string' },
-          cleanedText: { type: 'string' }
-        }
+          intent: { type: Type.STRING },
+          emotion: { type: Type.STRING },
+          risk: { type: Type.NUMBER },
+          language: { type: Type.STRING },
+          insight: { type: Type.STRING },
+          cleanedText: { type: Type.STRING }
+        },
+        required: ["intent", "emotion", "risk", "language", "insight", "cleanedText"]
       }
-    })
+    }
   });
 
-  if (!res.ok) throw new Error(`Neural Analysis Failure: ${res.status}`);
-  const textBody = await res.text();
-  try {
-    return textBody ? JSON.parse(textBody) : {};
-  } catch (e) {
-    console.error("[ANALYZE_JSON_FAULT]", e, "Body:", textBody);
-    throw new Error("MALFORMED_RESONSE: Pattern sync failed.");
-  }
+  return JSON.parse(response.text || '{}');
 };
 
 interface TranscriptEntry {
@@ -228,32 +224,27 @@ export function useCallDetection() {
 
   const transcribeAudio = useCallback(async (base64Audio: string, mimeType: string) => {
     try {
-      const res = await fetch(getApiUrl('/api/v1/ai/transcribe'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audio: base64Audio,
-          mimeType,
-          prompt: "Analyze this audio snippet. 1. Transcribe the speech accurately (Hindi/English/Hinglish). 2. Detect the speaker's TONE (Choose EXACTLY ONE from [ANGRY, STRESSED, CALM, NEUTRAL]). Return JSON: { 'text': string, 'tone': string }. If no speech, text should be '[NO_SPEECH]' and tone 'NEUTRAL'.",
-          schema: {
-            type: 'object',
+      const ai = getAi();
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: [
+          { text: "Analyze this audio snippet. 1. Transcribe the speech accurately (Hindi/English/Hinglish). 2. Detect the speaker's TONE (Choose EXACTLY ONE from [ANGRY, STRESSED, CALM, NEUTRAL]). Return JSON: { 'text': string, 'tone': string }. If no speech, text should be '[NO_SPEECH]' and tone 'NEUTRAL'." },
+          { inlineData: { mimeType, data: base64Audio } }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
             properties: {
-              text: { type: 'string' },
-              tone: { type: 'string' }
-            }
+              text: { type: Type.STRING },
+              tone: { type: Type.STRING }
+            },
+            required: ["text", "tone"]
           }
-        })
+        }
       });
 
-      if (!res.ok) throw new Error(`Neural Transcription Failure: ${res.status}`);
-      const textBody = await res.text();
-      let resultData;
-      try {
-        resultData = textBody ? JSON.parse(textBody) : {};
-      } catch (parseErr) {
-        console.error("[TRANSCRIBE_JSON_FAULT]", parseErr, "Body:", textBody);
-        throw new Error("MALFORMED_SIGNAL: Audio deconstruction failed.");
-      }
+      const resultData = JSON.parse(response.text || '{}');
       
       const transcriptText = resultData.text;
       const detectedTone = resultData.tone || 'NEUTRAL';
