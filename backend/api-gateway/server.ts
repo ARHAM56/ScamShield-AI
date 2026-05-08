@@ -334,54 +334,49 @@ export async function startServer() {
       });
     });
 
-    // Global start call (only if not in Vercel)
-    if (!process.env.VERCEL) {
-      const server = createServer(app);
-      const wss = new WebSocketServer({ noServer: true });
+    // Standard Express start
+    const server = createServer(app);
+    const wss = new WebSocketServer({ noServer: true });
 
-      // WebSocket Upgrade Handling
-      server.on('upgrade', (request, socket, head) => {
-        const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
-        if (pathname === '/api/voice-stream') {
-          wss.handleUpgrade(request, socket, head, (ws) => {
-            handleVoiceStream(ws, request);
-          });
-        } else {
-          socket.destroy();
-        }
-      });
-
-      const frontendPath = path.join(process.cwd(), 'frontend');
-      const rootDistPath = path.join(process.cwd(), 'dist');
-      const frontendDistPath = path.join(frontendPath, 'dist');
-      const distPath = fs.existsSync(rootDistPath) ? rootDistPath : frontendDistPath;
-      const hasDist = fs.existsSync(distPath);
-
-      if (process.env.NODE_ENV === "production" || hasDist) {
-        app.use(express.static(distPath));
-        app.get('*', (req, res) => {
-          res.sendFile(path.join(distPath, 'index.html'));
+    // WebSocket Upgrade Handling
+    server.on('upgrade', (request, socket, head) => {
+      const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
+      if (pathname === '/api/voice-stream') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          handleVoiceStream(ws, request);
         });
       } else {
-        const vite = await createViteServer({
-          server: { middlewareMode: true },
-          appType: "spa",
-          root: frontendPath,
-        });
-        app.use(vite.middlewares);
+        socket.destroy();
       }
+    });
 
-      server.listen(PORT, "0.0.0.0", () => {
-        console.log(`[SERVER] Running on http://0.0.0.0:${PORT}`);
+    const distPath = path.join(process.cwd(), 'dist');
+    const hasDist = fs.existsSync(distPath);
+
+    if (process.env.NODE_ENV === "production" || hasDist) {
+      console.log(`[SERVER] Production mode detected. Serving static files from: ${distPath}`);
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
       });
+    } else {
+      console.log(`[SERVER] Development mode detected. Enabling Vite middleware.`);
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+        root: path.join(process.cwd(), 'frontend'),
+      });
+      app.use(vite.middlewares);
     }
+
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`[SERVER] Neural Node online at http://0.0.0.0:${PORT}`);
+    });
 
     return app;
   }
 
-// Global start call (only if not in Vercel)
-if (!process.env.VERCEL) {
-  startServer().catch(err => {
-    console.error("[SERVER_FATAL]", err);
-  });
-}
+// Bootstrap
+startServer().catch(err => {
+  console.error("[SERVER_FATAL] Heart of the machine failed:", err);
+});
