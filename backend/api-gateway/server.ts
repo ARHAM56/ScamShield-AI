@@ -304,7 +304,7 @@ export async function startServer() {
     });
 
     // Default API 404 for unmatched routes within /api
-    apiRouter.all('*', (req, res) => {
+    apiRouter.all('*all', (req, res) => {
       console.warn(`[API_404] Unhandled endpoint: ${req.method} ${req.url} (Resolved: ${req.path})`);
       res.status(404).json({ 
         error: 'NEURAL_ENDPOINT_NOT_FOUND', 
@@ -356,7 +356,7 @@ export async function startServer() {
     if (process.env.NODE_ENV === "production" || hasDist) {
       console.log(`[SERVER] Production mode detected. Serving static files from: ${distPath}`);
       app.use(express.static(distPath));
-      app.get('*', (req, res) => {
+      app.get('*all', (req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
       });
     } else {
