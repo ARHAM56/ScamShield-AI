@@ -49,7 +49,7 @@ const getDb = () => {
 
 export async function startServer() {
   const app = express();
-  const isProd = process.env.NODE_ENV === "production" || (typeof __filename !== "undefined" && (__filename.endsWith("server.cjs") || __filename.includes("dist")));
+  const isProd = process.env.NODE_ENV === "production" || (typeof __filename !== "undefined" && (__filename.endsWith("server.js") || __filename.endsWith("server.cjs") || __filename.includes("dist"))) || (typeof import.meta.url !== "undefined" && import.meta.url.includes("dist"));
   const PORT = 3000;
 
   app.use(cors());
@@ -508,8 +508,8 @@ Do not return any markdown wrappers or backticks, just raw json.`
     }
     const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
 
-    // Distinguish development (running tsx server.ts) from compiled production (running dist/server.cjs)
-    const isCompiled = typeof __filename !== "undefined" && (__filename.endsWith("server.cjs") || __filename.includes("dist"));
+    // Distinguish development (running tsx server.ts) from compiled production (running dist/server.js)
+    const isCompiled = (typeof __filename !== "undefined" && (__filename.endsWith("server.js") || __filename.endsWith("server.cjs") || __filename.includes("dist"))) || (typeof import.meta.url !== "undefined" && import.meta.url.includes("dist"));
     const isProduction = process.env.NODE_ENV === "production" || isCompiled;
 
     if (isProduction && hasDist) {
