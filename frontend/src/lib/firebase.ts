@@ -6,11 +6,15 @@ import {
   getDocFromServer, 
   initializeFirestore, 
   memoryLocalCache, 
-  memoryLruGarbageCollector
+  memoryLruGarbageCollector,
+  setLogLevel
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
+
+// Set log level to 'error' to avoid noisy connection failure warnings in logs
+setLogLevel('error');
 
 // Use memory cache to avoid IndexedDB 'future timestamp' errors in ephemeral environments
 export const db = initializeFirestore(app, {

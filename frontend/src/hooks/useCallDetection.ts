@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { db, auth, waitForAuth, handleFirestoreError } from '../lib/firebase';
 
-import { getAi, MODEL_NAME, Type } from '../lib/gemini';
 import { getApiUrl } from '../lib/api';
 
 // [SENTINEL_RISK_ENGINE] Strategy-based analysis pipeline
@@ -12,44 +11,21 @@ const analyzeIntentVector = async (text: string, tone: string, recentScams: stri
     ? `\n[NEURAL_MEMORY] Pattern_Delta: ${sanitizedScams.join(' | ')}`
     : "";
 
-  const ai = getAi();
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: {
-      parts: [
-        { text: `[SYSTEM_DIRECTIVE]: You are a Multi-Vector Scam Detection Engine. 
-      Analyze the conversation intent using: Behavioral Heuristics, Manipulation Vectors, and Neural Memory.
-      
-      ${memoryContext}
-      Current_Tone_Feedback: ${tone}
-      
-      Detection Requirements:
-      1. Emotion Classification: [FEAR, URGENCY, GREED, AUTHORITY, NEUTRAL]
-      2. Intent Pattern: [FINANCIAL_FRAUD, SPOOFING, ACCOUNT_THREAT, SOCIAL_ENGINEERING, SAFE]
-      3. Risk Weight: 0-100 (Scale with Tone/Emotion)
-      4. Insight: Professional security brief.
-      
-      Input: "${text}"` }
-      ]
-    },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          intent: { type: Type.STRING },
-          emotion: { type: Type.STRING },
-          risk: { type: Type.NUMBER },
-          language: { type: Type.STRING },
-          insight: { type: Type.STRING },
-          cleanedText: { type: Type.STRING }
-        },
-        required: ["intent", "emotion", "risk", "language", "insight", "cleanedText"]
-      }
-    }
+  const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      input: text,
+      tone,
+      memoryContext
+    })
   });
 
-  return JSON.parse(response.text || '{}');
+  if (!res.ok) {
+    throw new Error(`AI Scan Core failed on status ${res.status}`);
+  }
+
+  return await res.json();
 };
 
 interface TranscriptEntry {
@@ -162,7 +138,7 @@ export function useCallDetection() {
     setIsScanning(true);
     
     // [PIPELINE_INIT]: Create preliminary entry
-    const entryId = `live-${Date.now()}`;
+    const entryId = `live-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const currentTone = voiceTone;
 
     setTranscript(prev => [...prev, {
@@ -219,8 +195,20 @@ export function useCallDetection() {
           setShowBreachModal(true);
         }
       }
+
+      return {
+        text: result.cleanedText || text,
+        isRisk: calculatedRisk > 45,
+        score: Math.round(calculatedRisk),
+        language: result.language || 'English',
+        emotion: result.emotion || 'NEUTRAL',
+        tone: currentTone,
+        intent: result.intent || 'STANDARD_COMMUNICATION',
+        insight: result.insight || 'No suspicious pattern matched.'
+      };
     } catch (e: any) {
       console.error('Detection pipeline fault:', e);
+      return null;
     } finally {
       setIsScanning(false);
     }
@@ -228,29 +216,22 @@ export function useCallDetection() {
 
   const transcribeAudio = useCallback(async (base64Audio: string, mimeType: string) => {
     try {
-      const ai = getAi();
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: {
-          parts: [
-            { text: "Analyze this audio snippet. 1. Transcribe the speech accurately (Hindi/English/Hinglish). 2. Detect the speaker's TONE (Choose EXACTLY ONE from [ANGRY, STRESSED, CALM, NEUTRAL]). Return JSON: { 'text': string, 'tone': string }. If no speech, text should be '[NO_SPEECH]' and tone 'NEUTRAL'." },
-            { inlineData: { mimeType, data: base64Audio } }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              text: { type: Type.STRING },
-              tone: { type: Type.STRING }
-            },
-            required: ["text", "tone"]
-          }
-        }
+      const res = await fetch(getApiUrl('/api/v1/ai/transcribe'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio: base64Audio,
+          mimeType,
+          model: 'tarteel-ai/whisper-base-ar-quran',
+          isCallPanel: true
+        })
       });
 
-      const resultData = JSON.parse(response.text || '{}');
+      if (!res.ok) {
+        throw new Error(`Voice analysis failed with status Code: ${res.status}`);
+      }
+
+      const resultData = await res.json();
       
       const transcriptText = resultData.text;
       const detectedTone = resultData.tone || 'NEUTRAL';
@@ -258,24 +239,18 @@ export function useCallDetection() {
       setVoiceTone(detectedTone as any);
 
       if (transcriptText && transcriptText.trim() && !transcriptText.includes('[NO_SPEECH]')) {
-        await processTranscript(transcriptText);
+        const analysis = await processTranscript(transcriptText);
+        return {
+          text: transcriptText,
+          analysis
+        };
       } else {
-        setTranscript(prev => [...prev, {
-          id: `sys-${Date.now()}`,
-          text: "Neural Link: Passive scanning active, but no clear voice recognized.",
-          sender: 'SYSTEM',
-          timestamp: new Date().toLocaleTimeString()
-        }]);
+        console.log("Neural Link: Passive scanning active, but no clear voice recognized.");
+        return null;
       }
     } catch (e: any) {
       console.error('Transcription Protocol Failure:', e);
-      const errorMsg = e.message || "Signal processing fault.";
-      setTranscript(prev => [...prev, {
-        id: `sys-err-${Date.now()}`,
-        text: `Neural Link Error: ${errorMsg}`,
-        sender: 'SYSTEM',
-        timestamp: new Date().toLocaleTimeString()
-      }]);
+      return null;
     }
   }, [processTranscript]);
 

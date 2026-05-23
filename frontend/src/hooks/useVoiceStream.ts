@@ -85,6 +85,8 @@ export function useVoiceStream() {
         body: JSON.stringify({
           audio: base64Wav,
           mimeType: "audio/wav",
+          model: 'tarteel-ai/whisper-base-ar-quran',
+          isCallPanel: true,
           prompt: "Transcribe this audio call snippet. Listen carefully for phishing or scam attempts. Return ONLY the transcription text.",
           schema: {
             type: 'object',

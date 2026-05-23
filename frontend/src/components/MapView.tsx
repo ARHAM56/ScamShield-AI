@@ -100,7 +100,7 @@ export default function MapView() {
           />
           {allThreats.map((threat, idx) => (
             <CircleMarker
-              key={`${threat.id}-${idx}`}
+              key={`${threat.id || 'threat'}-${threat.city || idx}-${idx}`}
               center={[threat.lat, threat.lng]}
               radius={threat.intensity / 4}
               pathOptions={{
@@ -139,7 +139,7 @@ export default function MapView() {
             <div className="space-y-3">
               {liveIntel.length > 0 ? liveIntel.slice(0, 3).map((threat, i) => (
                 <motion.div 
-                  key={i} 
+                  key={`${threat.id || i}-${i}`} 
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="flex items-center gap-3"

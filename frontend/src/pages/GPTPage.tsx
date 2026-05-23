@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, Sparkles, ShieldCheck, AlertCircle, Cpu, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { getAi, MODEL_NAME, Type } from '../lib/gemini';
+import { getApiUrl } from '../lib/api';
 
 export default function GPTPage() {
   const [input, setInput] = useState('');
@@ -17,29 +17,17 @@ export default function GPTPage() {
     setAnalysis(null);
 
     try {
-      const ai = getAi();
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `Analyze this content for phishing or social engineering: "${input}"`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: { type: Type.STRING },
-              risk_level: { type: Type.STRING },
-              indicators: { 
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              },
-              recommendation: { type: Type.STRING }
-            },
-            required: ["summary", "risk_level", "indicators", "recommendation"]
-          }
-        }
+      const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input })
       });
+
+      if (!res.ok) {
+        throw new Error(`AI Scan Core failed on status ${res.status}`);
+      }
       
-      const result = JSON.parse(response.text || '{}');
+      const result = await res.json();
       setAnalysis(result);
     } catch (error: any) {
       console.error('GPT Analysis failed:', error);
@@ -150,7 +138,7 @@ export default function GPTPage() {
                   <div className="space-y-3">
                     {(analysis.indicators || []).map((indicator: string, i: number) => (
                       <motion.div
-                        key={i}
+                        key={`${indicator}-${i}`}
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.1 }}

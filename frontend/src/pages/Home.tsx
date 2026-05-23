@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, Search, Globe, Zap, AlertCircle, CheckCircle2, Database } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { getAi, MODEL_NAME, Type } from '../lib/gemini';
 import RiskBadge from '../components/RiskBadge';
 import { collection, query, where, getDocs, orderBy, limit, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, waitForAuth, auth, handleFirestoreError } from '../lib/firebase';
@@ -123,40 +122,21 @@ export default function Home() {
         ? `\n[NEURAL_MEMORY] Confirmed Phishing Patterns: ${sanitizedScams.join(' | ')}`
         : "";
 
-      const ai = getAi();
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `Analyze this content for scam/phishing risk. Content can be SMS, Email, or URL.
-          ${personalMemory}
-          ${memoryContext}
-          
-          Compare the input with [NEURAL_MEMORY] and [PERSONAL_NEURAL_GRADIENT]. 
-          If the input similarity to a previous high-risk scan is > 85%, use that as a primary factor.
-          
-          1. Rate risk (0-100).
-          2. Identify threat markers (e.g., SUSPICIOUS_PATTERN, URGENCY, FINANCIAL_SPOOF).
-          3. Classification: Phishing, Spam, or Safe.
-          
-          Input: "${input}"`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              status: { type: Type.STRING },
-              score: { type: Type.NUMBER },
-              markers: { 
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              },
-              model: { type: Type.STRING }
-            },
-            required: ["status", "score", "markers", "model"]
-          }
-        }
+      const res = await fetch(getApiUrl('/api/v1/ai/analyze'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input,
+          personalMemory,
+          memoryContext
+        })
       });
 
-      const data = JSON.parse(response.text || '{}');
+      if (!res.ok) {
+        throw new Error(`AI Scan Core returned error state: ${res.status}`);
+      }
+
+      const data = await res.json();
 
       if (reputation > 0) {
         data.score = Math.max(data.score, 99);
@@ -293,12 +273,19 @@ export default function Home() {
               </div>
             )}
 
+            <div className="mb-6 p-6 bg-white/5 border border-white/10 rounded-2xl">
+              <h4 className="text-[10px] font-mono text-slate-500 uppercase tracking-[0.3em] mb-2">Scanned_Telemetry</h4>
+              <p className="text-xs font-mono text-white/95 leading-relaxed max-h-[120px] overflow-y-auto break-words whitespace-pre-wrap">
+                {result.cleanedText || input}
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <h4 className="text-[10px] font-mono text-slate-500 uppercase tracking-[0.3em]">Threat_Markers</h4>
                 <div className="flex flex-wrap gap-2">
-                  {(result.markers || []).length > 0 ? (result.markers || []).map((marker: string) => (
-                    <span key={marker} className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-mono text-white uppercase">
+                  {(result.markers || []).length > 0 ? (result.markers || []).map((marker: string, idx: number) => (
+                    <span key={`${marker}-${idx}`} className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-mono text-white uppercase">
                       {marker}
                     </span>
                   )) : (
@@ -364,7 +351,7 @@ export default function Home() {
           <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide">
             {history.length > 0 ? history.map((scan, i) => (
               <motion.div
-                key={scan.id}
+                key={`${scan.id || i}-${i}`}
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.05 }}

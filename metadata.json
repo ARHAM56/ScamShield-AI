@@ -3,5 +3,8 @@
   "description": "Production-grade Neural Call Protection & Auto-Block system. Locked to Arham's authorized node for global secure monitoring.",
   "requestFramePermissions": [
     "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

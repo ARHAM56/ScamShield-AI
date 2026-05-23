@@ -24,16 +24,17 @@ interface LiveTranscriptProps {
   onReport?: (entry: TranscriptEntry) => void;
   onFeedback?: (entryId: string, actual: 'scam' | 'safe') => void;
   canReport?: boolean;
+  liveRecordingText?: string;
 }
 
-export default function LiveTranscript({ transcript, isScanning, onReport, onFeedback, canReport = true }: LiveTranscriptProps) {
+export default function LiveTranscript({ transcript, isScanning, onReport, onFeedback, canReport = true, liveRecordingText }: LiveTranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [transcript]);
+  }, [transcript, liveRecordingText]);
 
   return (
     <div className="glass-panel rounded-[3rem] border-white/5 flex flex-col h-[600px] overflow-hidden">
@@ -61,9 +62,9 @@ export default function LiveTranscript({ transcript, isScanning, onReport, onFee
             </div>
           )}
           
-          {transcript.map((entry) => (
+          {transcript.map((entry, idx) => (
             <motion.div
-              key={entry.id}
+              key={`${entry.id || idx}-${idx}`}
               initial={{ opacity: 0, x: entry.sender === 'CALLER' ? -20 : 20 }}
               animate={{ opacity: 1, x: 0 }}
               className={cn(
@@ -198,6 +199,24 @@ export default function LiveTranscript({ transcript, isScanning, onReport, onFee
               </div>
             </motion.div>
           ))}
+          
+          {liveRecordingText && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="flex flex-col gap-2 items-start"
+            >
+              <div className="flex items-center gap-2 px-2">
+                <span className="text-[9px] font-mono text-primary uppercase tracking-widest animate-pulse">● LIVE_TRANSCRIBING</span>
+                <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">USER_MIC_STREAM</span>
+              </div>
+              <div className="max-w-[80%] p-5 rounded-3xl text-sm font-mono leading-relaxed bg-white/5 border border-primary/40 text-white rounded-tl-none relative shadow-[0_0_20px_rgba(142,213,255,0.1)]">
+                {liveRecordingText}
+                <span className="inline-block w-1.5 h-4 ml-1.5 bg-primary animate-pulse" />
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
     </div>

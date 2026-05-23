@@ -9,7 +9,17 @@ import { db } from '../lib/firebase';
 import { getApiUrl } from '../lib/api';
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<any>({
+    total_scans: "1.2M",
+    confirmed_phishing: "42.8K",
+    blocked_threats: "15.2K",
+    safe_urls: "98.4%",
+    vectors: [
+      { name: 'Email', value: 72 },
+      { name: 'SMS', value: 24 },
+      { name: 'Social', value: 12 }
+    ]
+  });
   const [recentReports, setRecentReports] = useState<any[]>([]);
   const [riskTrendData, setRiskTrendData] = useState<any[]>([]);
   const [emotionStats, setEmotionStats] = useState<any[]>([
@@ -52,6 +62,7 @@ export default function DashboardPage() {
       
       // Transform for trend chart
       const trend = reports.reverse().map((r: any) => ({
+        id: r.id,
         time: r.createdAt?.toDate?.() ? new Date(r.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '---',
         score: r.riskScore || 0
       }));
@@ -237,7 +248,11 @@ export default function DashboardPage() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                   <XAxis 
-                    dataKey="time" 
+                    dataKey="id" 
+                    tickFormatter={(id) => {
+                      const entry = riskTrendData.find(item => item.id === id);
+                      return entry ? entry.time : '---';
+                    }}
                     stroke="#475569" 
                     fontSize={8} 
                     tickLine={false} 
@@ -303,7 +318,7 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {recentReports.length > 0 ? recentReports.map((report, idx) => (
                 <motion.div 
-                  key={report.id}
+                  key={`${report.id || idx}-${idx}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.1 }}
